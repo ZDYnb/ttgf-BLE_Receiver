@@ -9,12 +9,16 @@ You can also include images in this folder and reference them in the markdown. E
 
 ## How it works
 
-Explain how your project works
+This project implements a Bluetooth Low Energy (BLE) digital baseband receiver designed to work with the SCuM (Single-Chip µ-Mote) platform. 
 
 ## How to test
 
-Explain how to use your project
+Connect the SCuM chip. The chip as the BLE receiver’s digital baseband. Transmit BLE packets from the SCuM RF front-end and observe decoded packet data on a connected computer via serial output or debugging interface.
 
 ## External hardware
 
-List external hardware used in your project (e.g. PMOD, LED display, etc), if any
+SCuM Chip (RF front-end and BLE transmitter)
+
+Digital Discovery
+
+Computer (for serial communication, visualization, and data logging)

@@ -13,7 +13,7 @@
 */
 
 
-`define MATCHED_FILTER_CLOCK_RECOVERY 1
+// `define MATCHED_FILTER_CLOCK_RECOVERY 1
 
 module ble_cdr #(
     parameter SAMPLE_RATE = 16,
@@ -52,7 +52,7 @@ module ble_cdr #(
     );
 
     logic symbol_clk;
-`ifndef MATCHED_FILTER_CLOCK_RECOVERY
+// `ifndef MATCHED_FILTER_CLOCK_RECOVERY
 
     // Preamble Detection stuff
     logic preamble_detected;
@@ -83,21 +83,21 @@ module ble_cdr #(
         .symbol_clk(symbol_clk)
     );
 
-`else
+// `else
 
-    clock_recovery #(
-        .SAMPLE_RATE(SAMPLE_RATE)
-    ) cr (
-        .clk(clk),
-        .en(en),
-        .resetn(resetn),
+//     clock_recovery #(
+//         .SAMPLE_RATE(SAMPLE_RATE)
+//     ) cr (
+//         .clk(~clk),
+//         .en(en),
+//         .resetn(resetn),
 
-        .mf_bit(demod_bit),
+//         .mf_bit(demod_bit),
 
-        .symbol_clk(symbol_clk)
-    );
+//         .symbol_clk(symbol_clk)
+//     );
 
-`endif
+// `endif
 
     always_comb begin
         demod_symbol = demod_bit;

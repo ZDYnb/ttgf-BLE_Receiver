@@ -25,7 +25,7 @@ module matched_filter #(
     output logic demodulated_bit
 );
 
-    localparam PIPELINE_STAGES = 1;
+    localparam PIPELINE_STAGES = 3;
 
     localparam TEMPLATE_WIDTH = 5;
     localparam PROD_WIDTH = DATA_WIDTH + TEMPLATE_WIDTH;
@@ -61,409 +61,585 @@ module matched_filter #(
     logic signed [PROD_SUM_WIDTH-1:0] low_i_i_prod_sum, low_i_q_prod_sum, low_q_i_prod_sum, low_q_q_prod_sum, high_i_i_prod_sum, high_i_q_prod_sum, high_q_i_prod_sum, high_q_q_prod_sum;
     logic signed [SQR_WIDTH-1:0] low_i_i_sqr, low_i_q_sqr, low_q_i_sqr, low_q_q_sqr, high_i_i_sqr, high_i_q_sqr, high_q_i_sqr, high_q_q_sqr;
 
+    // STAGE 1: Individual Products
+
+    // WIRES: Combinational outputs (computed every cycle)
+    logic signed [PROD_WIDTH-1:0] s1_low_i_i_prod [0:15];
+    logic signed [PROD_WIDTH-1:0] s1_low_q_i_prod [0:15];
+    logic signed [PROD_WIDTH-1:0] s1_low_i_q_prod [0:15];
+    logic signed [PROD_WIDTH-1:0] s1_low_q_q_prod [0:15];
+    logic signed [PROD_WIDTH-1:0] s1_high_i_i_prod [0:15];
+    logic signed [PROD_WIDTH-1:0] s1_high_q_i_prod [0:15];
+    logic signed [PROD_WIDTH-1:0] s1_high_i_q_prod [0:15];
+    logic signed [PROD_WIDTH-1:0] s1_high_q_q_prod [0:15];
+
+    // REGISTERS: Store the wire values (pipeline stage boundary)
+    logic signed [PROD_WIDTH-1:0] s1_reg_low_i_i_prod [0:15];
+    logic signed [PROD_WIDTH-1:0] s1_reg_low_q_i_prod [0:15];
+    logic signed [PROD_WIDTH-1:0] s1_reg_low_i_q_prod [0:15];
+    logic signed [PROD_WIDTH-1:0] s1_reg_low_q_q_prod [0:15];
+    logic signed [PROD_WIDTH-1:0] s1_reg_high_i_i_prod [0:15];
+    logic signed [PROD_WIDTH-1:0] s1_reg_high_q_i_prod [0:15];
+    logic signed [PROD_WIDTH-1:0] s1_reg_high_i_q_prod [0:15];
+    logic signed [PROD_WIDTH-1:0] s1_reg_high_q_q_prod [0:15];
+
+
+    // STAGE 1 COMBINATIONAL: Individual Products
     always_comb begin
         /*verilator lint_off WIDTH*/
-        // Low template i product and sum
-        low_i_i_prod_sum = 0;
-        low_q_i_prod_sum = 0;
-        low_i_i_prod_sum = low_i_i_prod_sum + (i_buffer[15] << 0);
-        low_q_i_prod_sum = low_q_i_prod_sum + (q_buffer[15] << 0);
-        low_i_i_prod_sum = low_i_i_prod_sum + (i_buffer[15] << 1);
-        low_q_i_prod_sum = low_q_i_prod_sum + (q_buffer[15] << 1);
-        low_i_i_prod_sum = low_i_i_prod_sum + (i_buffer[15] << 2);
-        low_q_i_prod_sum = low_q_i_prod_sum + (q_buffer[15] << 2);
-        low_i_i_prod_sum = low_i_i_prod_sum + (i_buffer[15] << 3);
-        low_q_i_prod_sum = low_q_i_prod_sum + (q_buffer[15] << 3);
         
-        low_i_i_prod_sum = low_i_i_prod_sum + (i_buffer[14] << 1);
-        low_q_i_prod_sum = low_q_i_prod_sum + (q_buffer[14] << 1);
-        low_i_i_prod_sum = low_i_i_prod_sum + (i_buffer[14] << 2);
-        low_q_i_prod_sum = low_q_i_prod_sum + (q_buffer[14] << 2);
-        low_i_i_prod_sum = low_i_i_prod_sum + (i_buffer[14] << 3);
-        low_q_i_prod_sum = low_q_i_prod_sum + (q_buffer[14] << 3);
+        // LOW TEMPLATE I
+        // Template: 15, 14, 11, 6, 0, -6, -11, -14, -15, -14, -11, -6, 0, 6, 11, 14
         
-        low_i_i_prod_sum = low_i_i_prod_sum + (i_buffer[13] << 0);
-        low_q_i_prod_sum = low_q_i_prod_sum + (q_buffer[13] << 0);
-        low_i_i_prod_sum = low_i_i_prod_sum + (i_buffer[13] << 1);
-        low_q_i_prod_sum = low_q_i_prod_sum + (q_buffer[13] << 1);
-        low_i_i_prod_sum = low_i_i_prod_sum + (i_buffer[13] << 3);
-        low_q_i_prod_sum = low_q_i_prod_sum + (q_buffer[13] << 3);
+        s1_low_i_i_prod[15] = (i_buffer[15] << 0) + (i_buffer[15] << 1) + (i_buffer[15] << 2) + (i_buffer[15] << 3); // *15
+        s1_low_q_i_prod[15] = (q_buffer[15] << 0) + (q_buffer[15] << 1) + (q_buffer[15] << 2) + (q_buffer[15] << 3);
         
-        low_i_i_prod_sum = low_i_i_prod_sum + (i_buffer[12] << 1);
-        low_q_i_prod_sum = low_q_i_prod_sum + (q_buffer[12] << 1);
-        low_i_i_prod_sum = low_i_i_prod_sum + (i_buffer[12] << 2);
-        low_q_i_prod_sum = low_q_i_prod_sum + (q_buffer[12] << 2);
+        s1_low_i_i_prod[14] = (i_buffer[14] << 1) + (i_buffer[14] << 2) + (i_buffer[14] << 3); // *14
+        s1_low_q_i_prod[14] = (q_buffer[14] << 1) + (q_buffer[14] << 2) + (q_buffer[14] << 3);
         
-        low_i_i_prod_sum = low_i_i_prod_sum - (i_buffer[10] << 1);
-        low_q_i_prod_sum = low_q_i_prod_sum - (q_buffer[10] << 1);
-        low_i_i_prod_sum = low_i_i_prod_sum - (i_buffer[10] << 2);
-        low_q_i_prod_sum = low_q_i_prod_sum - (q_buffer[10] << 2);
+        s1_low_i_i_prod[13] = (i_buffer[13] << 0) + (i_buffer[13] << 1) + (i_buffer[13] << 3); // *11
+        s1_low_q_i_prod[13] = (q_buffer[13] << 0) + (q_buffer[13] << 1) + (q_buffer[13] << 3);
         
-        low_i_i_prod_sum = low_i_i_prod_sum - (i_buffer[9] << 0);
-        low_q_i_prod_sum = low_q_i_prod_sum - (q_buffer[9] << 0);
-        low_i_i_prod_sum = low_i_i_prod_sum - (i_buffer[9] << 1);
-        low_q_i_prod_sum = low_q_i_prod_sum - (q_buffer[9] << 1);
-        low_i_i_prod_sum = low_i_i_prod_sum - (i_buffer[9] << 3);
-        low_q_i_prod_sum = low_q_i_prod_sum - (q_buffer[9] << 3);
+        s1_low_i_i_prod[12] = (i_buffer[12] << 1) + (i_buffer[12] << 2); // *6
+        s1_low_q_i_prod[12] = (q_buffer[12] << 1) + (q_buffer[12] << 2);
         
-        low_i_i_prod_sum = low_i_i_prod_sum - (i_buffer[8] << 1);
-        low_q_i_prod_sum = low_q_i_prod_sum - (q_buffer[8] << 1);
-        low_i_i_prod_sum = low_i_i_prod_sum - (i_buffer[8] << 2);
-        low_q_i_prod_sum = low_q_i_prod_sum - (q_buffer[8] << 2);
-        low_i_i_prod_sum = low_i_i_prod_sum - (i_buffer[8] << 3);
-        low_q_i_prod_sum = low_q_i_prod_sum - (q_buffer[8] << 3);
+        s1_low_i_i_prod[11] = 0; // *0
+        s1_low_q_i_prod[11] = 0;
         
-        low_i_i_prod_sum = low_i_i_prod_sum - (i_buffer[7] << 0);
-        low_q_i_prod_sum = low_q_i_prod_sum - (q_buffer[7] << 0);
-        low_i_i_prod_sum = low_i_i_prod_sum - (i_buffer[7] << 1);
-        low_q_i_prod_sum = low_q_i_prod_sum - (q_buffer[7] << 1);
-        low_i_i_prod_sum = low_i_i_prod_sum - (i_buffer[7] << 2);
-        low_q_i_prod_sum = low_q_i_prod_sum - (q_buffer[7] << 2);
-        low_i_i_prod_sum = low_i_i_prod_sum - (i_buffer[7] << 3);
-        low_q_i_prod_sum = low_q_i_prod_sum - (q_buffer[7] << 3);
+        s1_low_i_i_prod[10] = -((i_buffer[10] << 1) + (i_buffer[10] << 2)); // *-6
+        s1_low_q_i_prod[10] = -((q_buffer[10] << 1) + (q_buffer[10] << 2));
         
-        low_i_i_prod_sum = low_i_i_prod_sum - (i_buffer[6] << 1);
-        low_q_i_prod_sum = low_q_i_prod_sum - (q_buffer[6] << 1);
-        low_i_i_prod_sum = low_i_i_prod_sum - (i_buffer[6] << 2);
-        low_q_i_prod_sum = low_q_i_prod_sum - (q_buffer[6] << 2);
-        low_i_i_prod_sum = low_i_i_prod_sum - (i_buffer[6] << 3);
-        low_q_i_prod_sum = low_q_i_prod_sum - (q_buffer[6] << 3);
+        s1_low_i_i_prod[9] = -((i_buffer[9] << 0) + (i_buffer[9] << 1) + (i_buffer[9] << 3)); // *-11
+        s1_low_q_i_prod[9] = -((q_buffer[9] << 0) + (q_buffer[9] << 1) + (q_buffer[9] << 3));
         
-        low_i_i_prod_sum = low_i_i_prod_sum - (i_buffer[5] << 0);
-        low_q_i_prod_sum = low_q_i_prod_sum - (q_buffer[5] << 0);
-        low_i_i_prod_sum = low_i_i_prod_sum - (i_buffer[5] << 1);
-        low_q_i_prod_sum = low_q_i_prod_sum - (q_buffer[5] << 1);
-        low_i_i_prod_sum = low_i_i_prod_sum - (i_buffer[5] << 3);
-        low_q_i_prod_sum = low_q_i_prod_sum - (q_buffer[5] << 3);
+        s1_low_i_i_prod[8] = -((i_buffer[8] << 1) + (i_buffer[8] << 2) + (i_buffer[8] << 3)); // *-14
+        s1_low_q_i_prod[8] = -((q_buffer[8] << 1) + (q_buffer[8] << 2) + (q_buffer[8] << 3));
         
-        low_i_i_prod_sum = low_i_i_prod_sum - (i_buffer[4] << 1);
-        low_q_i_prod_sum = low_q_i_prod_sum - (q_buffer[4] << 1);
-        low_i_i_prod_sum = low_i_i_prod_sum - (i_buffer[4] << 2);
-        low_q_i_prod_sum = low_q_i_prod_sum - (q_buffer[4] << 2);
+        s1_low_i_i_prod[7] = -((i_buffer[7] << 0) + (i_buffer[7] << 1) + (i_buffer[7] << 2) + (i_buffer[7] << 3)); // *-15
+        s1_low_q_i_prod[7] = -((q_buffer[7] << 0) + (q_buffer[7] << 1) + (q_buffer[7] << 2) + (q_buffer[7] << 3));
         
-        low_i_i_prod_sum = low_i_i_prod_sum + (i_buffer[2] << 1);
-        low_q_i_prod_sum = low_q_i_prod_sum + (q_buffer[2] << 1);
-        low_i_i_prod_sum = low_i_i_prod_sum + (i_buffer[2] << 2);
-        low_q_i_prod_sum = low_q_i_prod_sum + (q_buffer[2] << 2);
+        s1_low_i_i_prod[6] = -((i_buffer[6] << 1) + (i_buffer[6] << 2) + (i_buffer[6] << 3)); // *-14
+        s1_low_q_i_prod[6] = -((q_buffer[6] << 1) + (q_buffer[6] << 2) + (q_buffer[6] << 3));
         
-        low_i_i_prod_sum = low_i_i_prod_sum + (i_buffer[1] << 0);
-        low_q_i_prod_sum = low_q_i_prod_sum + (q_buffer[1] << 0);
-        low_i_i_prod_sum = low_i_i_prod_sum + (i_buffer[1] << 1);
-        low_q_i_prod_sum = low_q_i_prod_sum + (q_buffer[1] << 1);
-        low_i_i_prod_sum = low_i_i_prod_sum + (i_buffer[1] << 3);
-        low_q_i_prod_sum = low_q_i_prod_sum + (q_buffer[1] << 3);
+        s1_low_i_i_prod[5] = -((i_buffer[5] << 0) + (i_buffer[5] << 1) + (i_buffer[5] << 3)); // *-11
+        s1_low_q_i_prod[5] = -((q_buffer[5] << 0) + (q_buffer[5] << 1) + (q_buffer[5] << 3));
         
-        low_i_i_prod_sum = low_i_i_prod_sum + (i_buffer[0] << 1);
-        low_q_i_prod_sum = low_q_i_prod_sum + (q_buffer[0] << 1);
-        low_i_i_prod_sum = low_i_i_prod_sum + (i_buffer[0] << 2);
-        low_q_i_prod_sum = low_q_i_prod_sum + (q_buffer[0] << 2);
-        low_i_i_prod_sum = low_i_i_prod_sum + (i_buffer[0] << 3);
-        low_q_i_prod_sum = low_q_i_prod_sum + (q_buffer[0] << 3);
+        s1_low_i_i_prod[4] = -((i_buffer[4] << 1) + (i_buffer[4] << 2)); // *-6
+        s1_low_q_i_prod[4] = -((q_buffer[4] << 1) + (q_buffer[4] << 2));
         
-        // Low template q product and sum
-        low_i_q_prod_sum = 0;
-        low_q_q_prod_sum = 0;
-        low_i_q_prod_sum = low_i_q_prod_sum + (i_buffer[14] << 1);
-        low_q_q_prod_sum = low_q_q_prod_sum + (q_buffer[14] << 1);
-        low_i_q_prod_sum = low_i_q_prod_sum + (i_buffer[14] << 2);
-        low_q_q_prod_sum = low_q_q_prod_sum + (q_buffer[14] << 2);
+        s1_low_i_i_prod[3] = 0; // *0
+        s1_low_q_i_prod[3] = 0;
         
-        low_i_q_prod_sum = low_i_q_prod_sum + (i_buffer[13] << 0);
-        low_q_q_prod_sum = low_q_q_prod_sum + (q_buffer[13] << 0);
-        low_i_q_prod_sum = low_i_q_prod_sum + (i_buffer[13] << 1);
-        low_q_q_prod_sum = low_q_q_prod_sum + (q_buffer[13] << 1);
-        low_i_q_prod_sum = low_i_q_prod_sum + (i_buffer[13] << 3);
-        low_q_q_prod_sum = low_q_q_prod_sum + (q_buffer[13] << 3);
+        s1_low_i_i_prod[2] = (i_buffer[2] << 1) + (i_buffer[2] << 2); // *6
+        s1_low_q_i_prod[2] = (q_buffer[2] << 1) + (q_buffer[2] << 2);
         
-        low_i_q_prod_sum = low_i_q_prod_sum + (i_buffer[12] << 1);
-        low_q_q_prod_sum = low_q_q_prod_sum + (q_buffer[12] << 1);
-        low_i_q_prod_sum = low_i_q_prod_sum + (i_buffer[12] << 2);
-        low_q_q_prod_sum = low_q_q_prod_sum + (q_buffer[12] << 2);
-        low_i_q_prod_sum = low_i_q_prod_sum + (i_buffer[12] << 3);
-        low_q_q_prod_sum = low_q_q_prod_sum + (q_buffer[12] << 3);
+        s1_low_i_i_prod[1] = (i_buffer[1] << 0) + (i_buffer[1] << 1) + (i_buffer[1] << 3); // *11
+        s1_low_q_i_prod[1] = (q_buffer[1] << 0) + (q_buffer[1] << 1) + (q_buffer[1] << 3);
         
-        low_i_q_prod_sum = low_i_q_prod_sum + (i_buffer[11] << 0);
-        low_q_q_prod_sum = low_q_q_prod_sum + (q_buffer[11] << 0);
-        low_i_q_prod_sum = low_i_q_prod_sum + (i_buffer[11] << 1);
-        low_q_q_prod_sum = low_q_q_prod_sum + (q_buffer[11] << 1);
-        low_i_q_prod_sum = low_i_q_prod_sum + (i_buffer[11] << 2);
-        low_q_q_prod_sum = low_q_q_prod_sum + (q_buffer[11] << 2);
-        low_i_q_prod_sum = low_i_q_prod_sum + (i_buffer[11] << 3);
-        low_q_q_prod_sum = low_q_q_prod_sum + (q_buffer[11] << 3);
+        s1_low_i_i_prod[0] = (i_buffer[0] << 1) + (i_buffer[0] << 2) + (i_buffer[0] << 3); // *14
+        s1_low_q_i_prod[0] = (q_buffer[0] << 1) + (q_buffer[0] << 2) + (q_buffer[0] << 3);
         
-        low_i_q_prod_sum = low_i_q_prod_sum + (i_buffer[10] << 1);
-        low_q_q_prod_sum = low_q_q_prod_sum + (q_buffer[10] << 1);
-        low_i_q_prod_sum = low_i_q_prod_sum + (i_buffer[10] << 2);
-        low_q_q_prod_sum = low_q_q_prod_sum + (q_buffer[10] << 2);
-        low_i_q_prod_sum = low_i_q_prod_sum + (i_buffer[10] << 3);
-        low_q_q_prod_sum = low_q_q_prod_sum + (q_buffer[10] << 3);
         
-        low_i_q_prod_sum = low_i_q_prod_sum + (i_buffer[9] << 0);
-        low_q_q_prod_sum = low_q_q_prod_sum + (q_buffer[9] << 0);
-        low_i_q_prod_sum = low_i_q_prod_sum + (i_buffer[9] << 1);
-        low_q_q_prod_sum = low_q_q_prod_sum + (q_buffer[9] << 1);
-        low_i_q_prod_sum = low_i_q_prod_sum + (i_buffer[9] << 3);
-        low_q_q_prod_sum = low_q_q_prod_sum + (q_buffer[9] << 3);
+        // LOW TEMPLATE Q 
+        // Template: 0, 6, 11, 14, 15, 14, 11, 6, 0, -6, -11, -14, -15, -14, -11, -6
         
-        low_i_q_prod_sum = low_i_q_prod_sum + (i_buffer[8] << 1);
-        low_q_q_prod_sum = low_q_q_prod_sum + (q_buffer[8] << 1);
-        low_i_q_prod_sum = low_i_q_prod_sum + (i_buffer[8] << 2);
-        low_q_q_prod_sum = low_q_q_prod_sum + (q_buffer[8] << 2);
+        s1_low_i_q_prod[15] = 0; // *0
+        s1_low_q_q_prod[15] = 0;
         
-        low_i_q_prod_sum = low_i_q_prod_sum - (i_buffer[6] << 1);
-        low_q_q_prod_sum = low_q_q_prod_sum - (q_buffer[6] << 1);
-        low_i_q_prod_sum = low_i_q_prod_sum - (i_buffer[6] << 2);
-        low_q_q_prod_sum = low_q_q_prod_sum - (q_buffer[6] << 2);
+        s1_low_i_q_prod[14] = (i_buffer[14] << 1) + (i_buffer[14] << 2); // *6
+        s1_low_q_q_prod[14] = (q_buffer[14] << 1) + (q_buffer[14] << 2);
         
-        low_i_q_prod_sum = low_i_q_prod_sum - (i_buffer[5] << 0);
-        low_q_q_prod_sum = low_q_q_prod_sum - (q_buffer[5] << 0);
-        low_i_q_prod_sum = low_i_q_prod_sum - (i_buffer[5] << 1);
-        low_q_q_prod_sum = low_q_q_prod_sum - (q_buffer[5] << 1);
-        low_i_q_prod_sum = low_i_q_prod_sum - (i_buffer[5] << 3);
-        low_q_q_prod_sum = low_q_q_prod_sum - (q_buffer[5] << 3);
+        s1_low_i_q_prod[13] = (i_buffer[13] << 0) + (i_buffer[13] << 1) + (i_buffer[13] << 3); // *11
+        s1_low_q_q_prod[13] = (q_buffer[13] << 0) + (q_buffer[13] << 1) + (q_buffer[13] << 3);
         
-        low_i_q_prod_sum = low_i_q_prod_sum - (i_buffer[4] << 1);
-        low_q_q_prod_sum = low_q_q_prod_sum - (q_buffer[4] << 1);
-        low_i_q_prod_sum = low_i_q_prod_sum - (i_buffer[4] << 2);
-        low_q_q_prod_sum = low_q_q_prod_sum - (q_buffer[4] << 2);
-        low_i_q_prod_sum = low_i_q_prod_sum - (i_buffer[4] << 3);
-        low_q_q_prod_sum = low_q_q_prod_sum - (q_buffer[4] << 3);
+        s1_low_i_q_prod[12] = (i_buffer[12] << 1) + (i_buffer[12] << 2) + (i_buffer[12] << 3); // *14
+        s1_low_q_q_prod[12] = (q_buffer[12] << 1) + (q_buffer[12] << 2) + (q_buffer[12] << 3);
         
-        low_i_q_prod_sum = low_i_q_prod_sum - (i_buffer[3] << 0);
-        low_q_q_prod_sum = low_q_q_prod_sum - (q_buffer[3] << 0);
-        low_i_q_prod_sum = low_i_q_prod_sum - (i_buffer[3] << 1);
-        low_q_q_prod_sum = low_q_q_prod_sum - (q_buffer[3] << 1);
-        low_i_q_prod_sum = low_i_q_prod_sum - (i_buffer[3] << 2);
-        low_q_q_prod_sum = low_q_q_prod_sum - (q_buffer[3] << 2);
-        low_i_q_prod_sum = low_i_q_prod_sum - (i_buffer[3] << 3);
-        low_q_q_prod_sum = low_q_q_prod_sum - (q_buffer[3] << 3);
+        s1_low_i_q_prod[11] = (i_buffer[11] << 0) + (i_buffer[11] << 1) + (i_buffer[11] << 2) + (i_buffer[11] << 3); // *15
+        s1_low_q_q_prod[11] = (q_buffer[11] << 0) + (q_buffer[11] << 1) + (q_buffer[11] << 2) + (q_buffer[11] << 3);
         
-        low_i_q_prod_sum = low_i_q_prod_sum - (i_buffer[2] << 1);
-        low_q_q_prod_sum = low_q_q_prod_sum - (q_buffer[2] << 1);
-        low_i_q_prod_sum = low_i_q_prod_sum - (i_buffer[2] << 2);
-        low_q_q_prod_sum = low_q_q_prod_sum - (q_buffer[2] << 2);
-        low_i_q_prod_sum = low_i_q_prod_sum - (i_buffer[2] << 3);
-        low_q_q_prod_sum = low_q_q_prod_sum - (q_buffer[2] << 3);
+        s1_low_i_q_prod[10] = (i_buffer[10] << 1) + (i_buffer[10] << 2) + (i_buffer[10] << 3); // *14
+        s1_low_q_q_prod[10] = (q_buffer[10] << 1) + (q_buffer[10] << 2) + (q_buffer[10] << 3);
         
-        low_i_q_prod_sum = low_i_q_prod_sum - (i_buffer[1] << 0);
-        low_q_q_prod_sum = low_q_q_prod_sum - (q_buffer[1] << 0);
-        low_i_q_prod_sum = low_i_q_prod_sum - (i_buffer[1] << 1);
-        low_q_q_prod_sum = low_q_q_prod_sum - (q_buffer[1] << 1);
-        low_i_q_prod_sum = low_i_q_prod_sum - (i_buffer[1] << 3);
-        low_q_q_prod_sum = low_q_q_prod_sum - (q_buffer[1] << 3);
+        s1_low_i_q_prod[9] = (i_buffer[9] << 0) + (i_buffer[9] << 1) + (i_buffer[9] << 3); // *11
+        s1_low_q_q_prod[9] = (q_buffer[9] << 0) + (q_buffer[9] << 1) + (q_buffer[9] << 3);
         
-        low_i_q_prod_sum = low_i_q_prod_sum - (i_buffer[0] << 1);
-        low_q_q_prod_sum = low_q_q_prod_sum - (q_buffer[0] << 1);
-        low_i_q_prod_sum = low_i_q_prod_sum - (i_buffer[0] << 2);
-        low_q_q_prod_sum = low_q_q_prod_sum - (q_buffer[0] << 2);
+        s1_low_i_q_prod[8] = (i_buffer[8] << 1) + (i_buffer[8] << 2); // *6
+        s1_low_q_q_prod[8] = (q_buffer[8] << 1) + (q_buffer[8] << 2);
         
-        // High template i product and sum
-        high_i_i_prod_sum = 0;
-        high_q_i_prod_sum = 0;
-        high_i_i_prod_sum = high_i_i_prod_sum + (i_buffer[15] << 0);
-        high_q_i_prod_sum = high_q_i_prod_sum + (q_buffer[15] << 0);
-        high_i_i_prod_sum = high_i_i_prod_sum + (i_buffer[15] << 1);
-        high_q_i_prod_sum = high_q_i_prod_sum + (q_buffer[15] << 1);
-        high_i_i_prod_sum = high_i_i_prod_sum + (i_buffer[15] << 2);
-        high_q_i_prod_sum = high_q_i_prod_sum + (q_buffer[15] << 2);
-        high_i_i_prod_sum = high_i_i_prod_sum + (i_buffer[15] << 3);
-        high_q_i_prod_sum = high_q_i_prod_sum + (q_buffer[15] << 3);
+        s1_low_i_q_prod[7] = 0; // *0
+        s1_low_q_q_prod[7] = 0;
         
-        high_i_i_prod_sum = high_i_i_prod_sum + (i_buffer[14] << 2);
-        high_q_i_prod_sum = high_q_i_prod_sum + (q_buffer[14] << 2);
-        high_i_i_prod_sum = high_i_i_prod_sum + (i_buffer[14] << 3);
-        high_q_i_prod_sum = high_q_i_prod_sum + (q_buffer[14] << 3);
+        s1_low_i_q_prod[6] = -((i_buffer[6] << 1) + (i_buffer[6] << 2)); // *-6
+        s1_low_q_q_prod[6] = -((q_buffer[6] << 1) + (q_buffer[6] << 2));
         
-        high_i_i_prod_sum = high_i_i_prod_sum + (i_buffer[13] << 1);
-        high_q_i_prod_sum = high_q_i_prod_sum + (q_buffer[13] << 1);
-        high_i_i_prod_sum = high_i_i_prod_sum + (i_buffer[13] << 2);
-        high_q_i_prod_sum = high_q_i_prod_sum + (q_buffer[13] << 2);
+        s1_low_i_q_prod[5] = -((i_buffer[5] << 0) + (i_buffer[5] << 1) + (i_buffer[5] << 3)); // *-11
+        s1_low_q_q_prod[5] = -((q_buffer[5] << 0) + (q_buffer[5] << 1) + (q_buffer[5] << 3));
         
-        high_i_i_prod_sum = high_i_i_prod_sum - (i_buffer[12] << 0);
-        high_q_i_prod_sum = high_q_i_prod_sum - (q_buffer[12] << 0);
-        high_i_i_prod_sum = high_i_i_prod_sum - (i_buffer[12] << 1);
-        high_q_i_prod_sum = high_q_i_prod_sum - (q_buffer[12] << 1);
+        s1_low_i_q_prod[4] = -((i_buffer[4] << 1) + (i_buffer[4] << 2) + (i_buffer[4] << 3)); // *-14
+        s1_low_q_q_prod[4] = -((q_buffer[4] << 1) + (q_buffer[4] << 2) + (q_buffer[4] << 3));
         
-        high_i_i_prod_sum = high_i_i_prod_sum - (i_buffer[11] << 0);
-        high_q_i_prod_sum = high_q_i_prod_sum - (q_buffer[11] << 0);
-        high_i_i_prod_sum = high_i_i_prod_sum - (i_buffer[11] << 1);
-        high_q_i_prod_sum = high_q_i_prod_sum - (q_buffer[11] << 1);
-        high_i_i_prod_sum = high_i_i_prod_sum - (i_buffer[11] << 3);
-        high_q_i_prod_sum = high_q_i_prod_sum - (q_buffer[11] << 3);
+        s1_low_i_q_prod[3] = -((i_buffer[3] << 0) + (i_buffer[3] << 1) + (i_buffer[3] << 2) + (i_buffer[3] << 3)); // *-15
+        s1_low_q_q_prod[3] = -((q_buffer[3] << 0) + (q_buffer[3] << 1) + (q_buffer[3] << 2) + (q_buffer[3] << 3));
         
-        high_i_i_prod_sum = high_i_i_prod_sum - (i_buffer[10] << 0);
-        high_q_i_prod_sum = high_q_i_prod_sum - (q_buffer[10] << 0);
-        high_i_i_prod_sum = high_i_i_prod_sum - (i_buffer[10] << 1);
-        high_q_i_prod_sum = high_q_i_prod_sum - (q_buffer[10] << 1);
-        high_i_i_prod_sum = high_i_i_prod_sum - (i_buffer[10] << 2);
-        high_q_i_prod_sum = high_q_i_prod_sum - (q_buffer[10] << 2);
-        high_i_i_prod_sum = high_i_i_prod_sum - (i_buffer[10] << 3);
-        high_q_i_prod_sum = high_q_i_prod_sum - (q_buffer[10] << 3);
+        s1_low_i_q_prod[2] = -((i_buffer[2] << 1) + (i_buffer[2] << 2) + (i_buffer[2] << 3)); // *-14
+        s1_low_q_q_prod[2] = -((q_buffer[2] << 1) + (q_buffer[2] << 2) + (q_buffer[2] << 3));
         
-        high_i_i_prod_sum = high_i_i_prod_sum - (i_buffer[9] << 1);
-        high_q_i_prod_sum = high_q_i_prod_sum - (q_buffer[9] << 1);
-        high_i_i_prod_sum = high_i_i_prod_sum - (i_buffer[9] << 2);
-        high_q_i_prod_sum = high_q_i_prod_sum - (q_buffer[9] << 2);
-        high_i_i_prod_sum = high_i_i_prod_sum - (i_buffer[9] << 3);
-        high_q_i_prod_sum = high_q_i_prod_sum - (q_buffer[9] << 3);
+        s1_low_i_q_prod[1] = -((i_buffer[1] << 0) + (i_buffer[1] << 1) + (i_buffer[1] << 3)); // *-11
+        s1_low_q_q_prod[1] = -((q_buffer[1] << 0) + (q_buffer[1] << 1) + (q_buffer[1] << 3));
         
-        high_i_i_prod_sum = high_i_i_prod_sum - (i_buffer[8] << 3);
-        high_q_i_prod_sum = high_q_i_prod_sum - (q_buffer[8] << 3);
+        s1_low_i_q_prod[0] = -((i_buffer[0] << 1) + (i_buffer[0] << 2)); // *-6
+        s1_low_q_q_prod[0] = -((q_buffer[0] << 1) + (q_buffer[0] << 2));
         
-        high_i_i_prod_sum = high_i_i_prod_sum + (i_buffer[6] << 3);
-        high_q_i_prod_sum = high_q_i_prod_sum + (q_buffer[6] << 3);
         
-        high_i_i_prod_sum = high_i_i_prod_sum + (i_buffer[5] << 1);
-        high_q_i_prod_sum = high_q_i_prod_sum + (q_buffer[5] << 1);
-        high_i_i_prod_sum = high_i_i_prod_sum + (i_buffer[5] << 2);
-        high_q_i_prod_sum = high_q_i_prod_sum + (q_buffer[5] << 2);
-        high_i_i_prod_sum = high_i_i_prod_sum + (i_buffer[5] << 3);
-        high_q_i_prod_sum = high_q_i_prod_sum + (q_buffer[5] << 3);
+        // HIGH TEMPLATE I
+        // Template: 15, 12, 6, -3, -11, -15, -14, -8, 0, 8, 14, 15, 11, 3, -6, -12
         
-        high_i_i_prod_sum = high_i_i_prod_sum + (i_buffer[4] << 0);
-        high_q_i_prod_sum = high_q_i_prod_sum + (q_buffer[4] << 0);
-        high_i_i_prod_sum = high_i_i_prod_sum + (i_buffer[4] << 1);
-        high_q_i_prod_sum = high_q_i_prod_sum + (q_buffer[4] << 1);
-        high_i_i_prod_sum = high_i_i_prod_sum + (i_buffer[4] << 2);
-        high_q_i_prod_sum = high_q_i_prod_sum + (q_buffer[4] << 2);
-        high_i_i_prod_sum = high_i_i_prod_sum + (i_buffer[4] << 3);
-        high_q_i_prod_sum = high_q_i_prod_sum + (q_buffer[4] << 3);
+        s1_high_i_i_prod[15] = (i_buffer[15] << 0) + (i_buffer[15] << 1) + (i_buffer[15] << 2) + (i_buffer[15] << 3); // *15
+        s1_high_q_i_prod[15] = (q_buffer[15] << 0) + (q_buffer[15] << 1) + (q_buffer[15] << 2) + (q_buffer[15] << 3);
         
-        high_i_i_prod_sum = high_i_i_prod_sum + (i_buffer[3] << 0);
-        high_q_i_prod_sum = high_q_i_prod_sum + (q_buffer[3] << 0);
-        high_i_i_prod_sum = high_i_i_prod_sum + (i_buffer[3] << 1);
-        high_q_i_prod_sum = high_q_i_prod_sum + (q_buffer[3] << 1);
-        high_i_i_prod_sum = high_i_i_prod_sum + (i_buffer[3] << 3);
-        high_q_i_prod_sum = high_q_i_prod_sum + (q_buffer[3] << 3);
+        s1_high_i_i_prod[14] = (i_buffer[14] << 2) + (i_buffer[14] << 3); // *12
+        s1_high_q_i_prod[14] = (q_buffer[14] << 2) + (q_buffer[14] << 3);
         
-        high_i_i_prod_sum = high_i_i_prod_sum + (i_buffer[2] << 0);
-        high_q_i_prod_sum = high_q_i_prod_sum + (q_buffer[2] << 0);
-        high_i_i_prod_sum = high_i_i_prod_sum + (i_buffer[2] << 1);
-        high_q_i_prod_sum = high_q_i_prod_sum + (q_buffer[2] << 1);
+        s1_high_i_i_prod[13] = (i_buffer[13] << 1) + (i_buffer[13] << 2); // *6
+        s1_high_q_i_prod[13] = (q_buffer[13] << 1) + (q_buffer[13] << 2);
         
-        high_i_i_prod_sum = high_i_i_prod_sum - (i_buffer[1] << 1);
-        high_q_i_prod_sum = high_q_i_prod_sum - (q_buffer[1] << 1);
-        high_i_i_prod_sum = high_i_i_prod_sum - (i_buffer[1] << 2);
-        high_q_i_prod_sum = high_q_i_prod_sum - (q_buffer[1] << 2);
+        s1_high_i_i_prod[12] = -((i_buffer[12] << 0) + (i_buffer[12] << 1)); // *-3
+        s1_high_q_i_prod[12] = -((q_buffer[12] << 0) + (q_buffer[12] << 1));
         
-        high_i_i_prod_sum = high_i_i_prod_sum - (i_buffer[0] << 2);
-        high_q_i_prod_sum = high_q_i_prod_sum - (q_buffer[0] << 2);
-        high_i_i_prod_sum = high_i_i_prod_sum - (i_buffer[0] << 3);
-        high_q_i_prod_sum = high_q_i_prod_sum - (q_buffer[0] << 3);
+        s1_high_i_i_prod[11] = -((i_buffer[11] << 0) + (i_buffer[11] << 1) + (i_buffer[11] << 3)); // *-11
+        s1_high_q_i_prod[11] = -((q_buffer[11] << 0) + (q_buffer[11] << 1) + (q_buffer[11] << 3));
         
-        // High template q product and sum
-        high_i_q_prod_sum = 0;
-        high_q_q_prod_sum = 0;
-        high_i_q_prod_sum = high_i_q_prod_sum + (i_buffer[14] << 3);
-        high_q_q_prod_sum = high_q_q_prod_sum + (q_buffer[14] << 3);
+        s1_high_i_i_prod[10] = -((i_buffer[10] << 0) + (i_buffer[10] << 1) + (i_buffer[10] << 2) + (i_buffer[10] << 3)); // *-15
+        s1_high_q_i_prod[10] = -((q_buffer[10] << 0) + (q_buffer[10] << 1) + (q_buffer[10] << 2) + (q_buffer[10] << 3));
         
-        high_i_q_prod_sum = high_i_q_prod_sum + (i_buffer[13] << 1);
-        high_q_q_prod_sum = high_q_q_prod_sum + (q_buffer[13] << 1);
-        high_i_q_prod_sum = high_i_q_prod_sum + (i_buffer[13] << 2);
-        high_q_q_prod_sum = high_q_q_prod_sum + (q_buffer[13] << 2);
-        high_i_q_prod_sum = high_i_q_prod_sum + (i_buffer[13] << 3);
-        high_q_q_prod_sum = high_q_q_prod_sum + (q_buffer[13] << 3);
+        s1_high_i_i_prod[9] = -((i_buffer[9] << 1) + (i_buffer[9] << 2) + (i_buffer[9] << 3)); // *-14
+        s1_high_q_i_prod[9] = -((q_buffer[9] << 1) + (q_buffer[9] << 2) + (q_buffer[9] << 3));
         
-        high_i_q_prod_sum = high_i_q_prod_sum + (i_buffer[12] << 0);
-        high_q_q_prod_sum = high_q_q_prod_sum + (q_buffer[12] << 0);
-        high_i_q_prod_sum = high_i_q_prod_sum + (i_buffer[12] << 1);
-        high_q_q_prod_sum = high_q_q_prod_sum + (q_buffer[12] << 1);
-        high_i_q_prod_sum = high_i_q_prod_sum + (i_buffer[12] << 2);
-        high_q_q_prod_sum = high_q_q_prod_sum + (q_buffer[12] << 2);
-        high_i_q_prod_sum = high_i_q_prod_sum + (i_buffer[12] << 3);
-        high_q_q_prod_sum = high_q_q_prod_sum + (q_buffer[12] << 3);
+        s1_high_i_i_prod[8] = -(i_buffer[8] << 3); // *-8
+        s1_high_q_i_prod[8] = -(q_buffer[8] << 3);
         
-        high_i_q_prod_sum = high_i_q_prod_sum + (i_buffer[11] << 0);
-        high_q_q_prod_sum = high_q_q_prod_sum + (q_buffer[11] << 0);
-        high_i_q_prod_sum = high_i_q_prod_sum + (i_buffer[11] << 1);
-        high_q_q_prod_sum = high_q_q_prod_sum + (q_buffer[11] << 1);
-        high_i_q_prod_sum = high_i_q_prod_sum + (i_buffer[11] << 3);
-        high_q_q_prod_sum = high_q_q_prod_sum + (q_buffer[11] << 3);
+        s1_high_i_i_prod[7] = 0; // *0
+        s1_high_q_i_prod[7] = 0;
         
-        high_i_q_prod_sum = high_i_q_prod_sum + (i_buffer[10] << 0);
-        high_q_q_prod_sum = high_q_q_prod_sum + (q_buffer[10] << 0);
-        high_i_q_prod_sum = high_i_q_prod_sum + (i_buffer[10] << 1);
-        high_q_q_prod_sum = high_q_q_prod_sum + (q_buffer[10] << 1);
+        s1_high_i_i_prod[6] = (i_buffer[6] << 3); // *8
+        s1_high_q_i_prod[6] = (q_buffer[6] << 3);
         
-        high_i_q_prod_sum = high_i_q_prod_sum - (i_buffer[9] << 1);
-        high_q_q_prod_sum = high_q_q_prod_sum - (q_buffer[9] << 1);
-        high_i_q_prod_sum = high_i_q_prod_sum - (i_buffer[9] << 2);
-        high_q_q_prod_sum = high_q_q_prod_sum - (q_buffer[9] << 2);
+        s1_high_i_i_prod[5] = (i_buffer[5] << 1) + (i_buffer[5] << 2) + (i_buffer[5] << 3); // *14
+        s1_high_q_i_prod[5] = (q_buffer[5] << 1) + (q_buffer[5] << 2) + (q_buffer[5] << 3);
         
-        high_i_q_prod_sum = high_i_q_prod_sum - (i_buffer[8] << 2);
-        high_q_q_prod_sum = high_q_q_prod_sum - (q_buffer[8] << 2);
-        high_i_q_prod_sum = high_i_q_prod_sum - (i_buffer[8] << 3);
-        high_q_q_prod_sum = high_q_q_prod_sum - (q_buffer[8] << 3);
+        s1_high_i_i_prod[4] = (i_buffer[4] << 0) + (i_buffer[4] << 1) + (i_buffer[4] << 2) + (i_buffer[4] << 3); // *15
+        s1_high_q_i_prod[4] = (q_buffer[4] << 0) + (q_buffer[4] << 1) + (q_buffer[4] << 2) + (q_buffer[4] << 3);
         
-        high_i_q_prod_sum = high_i_q_prod_sum - (i_buffer[7] << 0);
-        high_q_q_prod_sum = high_q_q_prod_sum - (q_buffer[7] << 0);
-        high_i_q_prod_sum = high_i_q_prod_sum - (i_buffer[7] << 1);
-        high_q_q_prod_sum = high_q_q_prod_sum - (q_buffer[7] << 1);
-        high_i_q_prod_sum = high_i_q_prod_sum - (i_buffer[7] << 2);
-        high_q_q_prod_sum = high_q_q_prod_sum - (q_buffer[7] << 2);
-        high_i_q_prod_sum = high_i_q_prod_sum - (i_buffer[7] << 3);
-        high_q_q_prod_sum = high_q_q_prod_sum - (q_buffer[7] << 3);
+        s1_high_i_i_prod[3] = (i_buffer[3] << 0) + (i_buffer[3] << 1) + (i_buffer[3] << 3); // *11
+        s1_high_q_i_prod[3] = (q_buffer[3] << 0) + (q_buffer[3] << 1) + (q_buffer[3] << 3);
         
-        high_i_q_prod_sum = high_i_q_prod_sum - (i_buffer[6] << 2);
-        high_q_q_prod_sum = high_q_q_prod_sum - (q_buffer[6] << 2);
-        high_i_q_prod_sum = high_i_q_prod_sum - (i_buffer[6] << 3);
-        high_q_q_prod_sum = high_q_q_prod_sum - (q_buffer[6] << 3);
+        s1_high_i_i_prod[2] = (i_buffer[2] << 0) + (i_buffer[2] << 1); // *3
+        s1_high_q_i_prod[2] = (q_buffer[2] << 0) + (q_buffer[2] << 1);
         
-        high_i_q_prod_sum = high_i_q_prod_sum - (i_buffer[5] << 1);
-        high_q_q_prod_sum = high_q_q_prod_sum - (q_buffer[5] << 1);
-        high_i_q_prod_sum = high_i_q_prod_sum - (i_buffer[5] << 2);
-        high_q_q_prod_sum = high_q_q_prod_sum - (q_buffer[5] << 2);
+        s1_high_i_i_prod[1] = -((i_buffer[1] << 1) + (i_buffer[1] << 2)); // *-6
+        s1_high_q_i_prod[1] = -((q_buffer[1] << 1) + (q_buffer[1] << 2));
         
-        high_i_q_prod_sum = high_i_q_prod_sum + (i_buffer[4] << 0);
-        high_q_q_prod_sum = high_q_q_prod_sum + (q_buffer[4] << 0);
-        high_i_q_prod_sum = high_i_q_prod_sum + (i_buffer[4] << 1);
-        high_q_q_prod_sum = high_q_q_prod_sum + (q_buffer[4] << 1);
+        s1_high_i_i_prod[0] = -((i_buffer[0] << 2) + (i_buffer[0] << 3)); // *-12
+        s1_high_q_i_prod[0] = -((q_buffer[0] << 2) + (q_buffer[0] << 3));
         
-        high_i_q_prod_sum = high_i_q_prod_sum + (i_buffer[3] << 0);
-        high_q_q_prod_sum = high_q_q_prod_sum + (q_buffer[3] << 0);
-        high_i_q_prod_sum = high_i_q_prod_sum + (i_buffer[3] << 1);
-        high_q_q_prod_sum = high_q_q_prod_sum + (q_buffer[3] << 1);
-        high_i_q_prod_sum = high_i_q_prod_sum + (i_buffer[3] << 3);
-        high_q_q_prod_sum = high_q_q_prod_sum + (q_buffer[3] << 3);
         
-        high_i_q_prod_sum = high_i_q_prod_sum + (i_buffer[2] << 0);
-        high_q_q_prod_sum = high_q_q_prod_sum + (q_buffer[2] << 0);
-        high_i_q_prod_sum = high_i_q_prod_sum + (i_buffer[2] << 1);
-        high_q_q_prod_sum = high_q_q_prod_sum + (q_buffer[2] << 1);
-        high_i_q_prod_sum = high_i_q_prod_sum + (i_buffer[2] << 2);
-        high_q_q_prod_sum = high_q_q_prod_sum + (q_buffer[2] << 2);
-        high_i_q_prod_sum = high_i_q_prod_sum + (i_buffer[2] << 3);
-        high_q_q_prod_sum = high_q_q_prod_sum + (q_buffer[2] << 3);
+        // HIGH TEMPLATE Q 
+        // Template: 0, 8, 14, 15, 11, 3, -6, -12, -15, -12, -6, 3, 11, 15, 14, 8
         
-        high_i_q_prod_sum = high_i_q_prod_sum + (i_buffer[1] << 1);
-        high_q_q_prod_sum = high_q_q_prod_sum + (q_buffer[1] << 1);
-        high_i_q_prod_sum = high_i_q_prod_sum + (i_buffer[1] << 2);
-        high_q_q_prod_sum = high_q_q_prod_sum + (q_buffer[1] << 2);
-        high_i_q_prod_sum = high_i_q_prod_sum + (i_buffer[1] << 3);
-        high_q_q_prod_sum = high_q_q_prod_sum + (q_buffer[1] << 3);
+        s1_high_i_q_prod[15] = 0; // *0
+        s1_high_q_q_prod[15] = 0;
         
-        high_i_q_prod_sum = high_i_q_prod_sum + (i_buffer[0] << 3);
-        high_q_q_prod_sum = high_q_q_prod_sum + (q_buffer[0] << 3);
+        s1_high_i_q_prod[14] = (i_buffer[14] << 3); // *8
+        s1_high_q_q_prod[14] = (q_buffer[14] << 3);
         
+        s1_high_i_q_prod[13] = (i_buffer[13] << 1) + (i_buffer[13] << 2) + (i_buffer[13] << 3); // *14
+        s1_high_q_q_prod[13] = (q_buffer[13] << 1) + (q_buffer[13] << 2) + (q_buffer[13] << 3);
+        
+        s1_high_i_q_prod[12] = (i_buffer[12] << 0) + (i_buffer[12] << 1) + (i_buffer[12] << 2) + (i_buffer[12] << 3); // *15
+        s1_high_q_q_prod[12] = (q_buffer[12] << 0) + (q_buffer[12] << 1) + (q_buffer[12] << 2) + (q_buffer[12] << 3);
+        
+        s1_high_i_q_prod[11] = (i_buffer[11] << 0) + (i_buffer[11] << 1) + (i_buffer[11] << 3); // *11
+        s1_high_q_q_prod[11] = (q_buffer[11] << 0) + (q_buffer[11] << 1) + (q_buffer[11] << 3);
+        
+        s1_high_i_q_prod[10] = (i_buffer[10] << 0) + (i_buffer[10] << 1); // *3
+        s1_high_q_q_prod[10] = (q_buffer[10] << 0) + (q_buffer[10] << 1);
+        
+        s1_high_i_q_prod[9] = -((i_buffer[9] << 1) + (i_buffer[9] << 2)); // *-6
+        s1_high_q_q_prod[9] = -((q_buffer[9] << 1) + (q_buffer[9] << 2));
+        
+        s1_high_i_q_prod[8] = -((i_buffer[8] << 2) + (i_buffer[8] << 3)); // *-12
+        s1_high_q_q_prod[8] = -((q_buffer[8] << 2) + (q_buffer[8] << 3));
+        
+        s1_high_i_q_prod[7] = -((i_buffer[7] << 0) + (i_buffer[7] << 1) + (i_buffer[7] << 2) + (i_buffer[7] << 3)); // *-15
+        s1_high_q_q_prod[7] = -((q_buffer[7] << 0) + (q_buffer[7] << 1) + (q_buffer[7] << 2) + (q_buffer[7] << 3));
+        
+        s1_high_i_q_prod[6] = -((i_buffer[6] << 2) + (i_buffer[6] << 3)); // *-12
+        s1_high_q_q_prod[6] = -((q_buffer[6] << 2) + (q_buffer[6] << 3));
+        
+        s1_high_i_q_prod[5] = -((i_buffer[5] << 1) + (i_buffer[5] << 2)); // *-6
+        s1_high_q_q_prod[5] = -((q_buffer[5] << 1) + (q_buffer[5] << 2));
+        
+        s1_high_i_q_prod[4] = (i_buffer[4] << 0) + (i_buffer[4] << 1); // *3
+        s1_high_q_q_prod[4] = (q_buffer[4] << 0) + (q_buffer[4] << 1);
+        
+        s1_high_i_q_prod[3] = (i_buffer[3] << 0) + (i_buffer[3] << 1) + (i_buffer[3] << 3); // *11
+        s1_high_q_q_prod[3] = (q_buffer[3] << 0) + (q_buffer[3] << 1) + (q_buffer[3] << 3);
+        
+        s1_high_i_q_prod[2] = (i_buffer[2] << 0) + (i_buffer[2] << 1) + (i_buffer[2] << 2) + (i_buffer[2] << 3); // *15
+        s1_high_q_q_prod[2] = (q_buffer[2] << 0) + (q_buffer[2] << 1) + (q_buffer[2] << 2) + (q_buffer[2] << 3);
+        
+        s1_high_i_q_prod[1] = (i_buffer[1] << 1) + (i_buffer[1] << 2) + (i_buffer[1] << 3); // *14
+        s1_high_q_q_prod[1] = (q_buffer[1] << 1) + (q_buffer[1] << 2) + (q_buffer[1] << 3);
+        
+        s1_high_i_q_prod[0] = (i_buffer[0] << 3); // *8
+        s1_high_q_q_prod[0] = (q_buffer[0] << 3);
         
         /*verilator lint_on WIDTH*/
+    end
 
-        // Calculate the low score by squaring and summing the products
-        low_i_i_sqr = low_i_i_prod_sum * low_i_i_prod_sum;
-        low_i_q_sqr = low_i_q_prod_sum * low_i_q_prod_sum;
-        low_q_i_sqr = low_q_i_prod_sum * low_q_i_prod_sum;
-        low_q_q_sqr = low_q_q_prod_sum * low_q_q_prod_sum;
-        low_score = low_i_i_sqr + low_i_q_sqr + low_q_i_sqr + low_q_q_sqr;
 
-        // Calculate the low score by squaring and summing the products
-        high_i_i_sqr = high_i_i_prod_sum * high_i_i_prod_sum;
-        high_i_q_sqr = high_i_q_prod_sum * high_i_q_prod_sum;
-        high_q_i_sqr = high_q_i_prod_sum * high_q_i_prod_sum;
-        high_q_q_sqr = high_q_q_prod_sum * high_q_q_prod_sum;
-        high_score = high_i_i_sqr + high_i_q_sqr + high_q_i_sqr + high_q_q_sqr;
+    // STAGE 2: Partial Sums (16 to 4)
+    // Combinational: Sum groups of 4 products
+    logic signed [PROD_SUM_WIDTH-1:0] s2_low_i_i_partial [0:3];
+    logic signed [PROD_SUM_WIDTH-1:0] s2_low_q_i_partial [0:3];
+    logic signed [PROD_SUM_WIDTH-1:0] s2_low_i_q_partial [0:3];
+    logic signed [PROD_SUM_WIDTH-1:0] s2_low_q_q_partial [0:3];
+    logic signed [PROD_SUM_WIDTH-1:0] s2_high_i_i_partial [0:3];
+    logic signed [PROD_SUM_WIDTH-1:0] s2_high_q_i_partial [0:3];
+    logic signed [PROD_SUM_WIDTH-1:0] s2_high_i_q_partial [0:3];
+    logic signed [PROD_SUM_WIDTH-1:0] s2_high_q_q_partial [0:3];
 
-        // Determine the bit
-        demodulated_bit = high_score > low_score;
+    // Registered: Store the partial sums
+    logic signed [PROD_SUM_WIDTH-1:0] s2_reg_low_i_i_partial [0:3];
+    logic signed [PROD_SUM_WIDTH-1:0] s2_reg_low_q_i_partial [0:3];
+    logic signed [PROD_SUM_WIDTH-1:0] s2_reg_low_i_q_partial [0:3];
+    logic signed [PROD_SUM_WIDTH-1:0] s2_reg_low_q_q_partial [0:3];
+    logic signed [PROD_SUM_WIDTH-1:0] s2_reg_high_i_i_partial [0:3];
+    logic signed [PROD_SUM_WIDTH-1:0] s2_reg_high_q_i_partial [0:3];
+    logic signed [PROD_SUM_WIDTH-1:0] s2_reg_high_i_q_partial [0:3];
+    logic signed [PROD_SUM_WIDTH-1:0] s2_reg_high_q_q_partial [0:3];
+
+
+        // STAGE 2 COMBINATIONAL: Partial Sums (16 → 4)
+    always_comb begin
+        // ==================== LOW TEMPLATE I ====================
+        s2_low_i_i_partial[0] = s1_reg_low_i_i_prod[0] + s1_reg_low_i_i_prod[1] + 
+                                s1_reg_low_i_i_prod[2] + s1_reg_low_i_i_prod[3];
+        
+        s2_low_i_i_partial[1] = s1_reg_low_i_i_prod[4] + s1_reg_low_i_i_prod[5] + 
+                                s1_reg_low_i_i_prod[6] + s1_reg_low_i_i_prod[7];
+        
+        s2_low_i_i_partial[2] = s1_reg_low_i_i_prod[8] + s1_reg_low_i_i_prod[9] + 
+                                s1_reg_low_i_i_prod[10] + s1_reg_low_i_i_prod[11];
+        
+        s2_low_i_i_partial[3] = s1_reg_low_i_i_prod[12] + s1_reg_low_i_i_prod[13] + 
+                                s1_reg_low_i_i_prod[14] + s1_reg_low_i_i_prod[15];
+
+        // ==================== LOW TEMPLATE Q_I ====================
+        s2_low_q_i_partial[0] = s1_reg_low_q_i_prod[0] + s1_reg_low_q_i_prod[1] + 
+                                s1_reg_low_q_i_prod[2] + s1_reg_low_q_i_prod[3];
+        
+        s2_low_q_i_partial[1] = s1_reg_low_q_i_prod[4] + s1_reg_low_q_i_prod[5] + 
+                                s1_reg_low_q_i_prod[6] + s1_reg_low_q_i_prod[7];
+        
+        s2_low_q_i_partial[2] = s1_reg_low_q_i_prod[8] + s1_reg_low_q_i_prod[9] + 
+                                s1_reg_low_q_i_prod[10] + s1_reg_low_q_i_prod[11];
+        
+        s2_low_q_i_partial[3] = s1_reg_low_q_i_prod[12] + s1_reg_low_q_i_prod[13] + 
+                                s1_reg_low_q_i_prod[14] + s1_reg_low_q_i_prod[15];
+
+        // ==================== LOW TEMPLATE I_Q ====================
+        s2_low_i_q_partial[0] = s1_reg_low_i_q_prod[0] + s1_reg_low_i_q_prod[1] + 
+                                s1_reg_low_i_q_prod[2] + s1_reg_low_i_q_prod[3];
+        
+        s2_low_i_q_partial[1] = s1_reg_low_i_q_prod[4] + s1_reg_low_i_q_prod[5] + 
+                                s1_reg_low_i_q_prod[6] + s1_reg_low_i_q_prod[7];
+        
+        s2_low_i_q_partial[2] = s1_reg_low_i_q_prod[8] + s1_reg_low_i_q_prod[9] + 
+                                s1_reg_low_i_q_prod[10] + s1_reg_low_i_q_prod[11];
+        
+        s2_low_i_q_partial[3] = s1_reg_low_i_q_prod[12] + s1_reg_low_i_q_prod[13] + 
+                                s1_reg_low_i_q_prod[14] + s1_reg_low_i_q_prod[15];
+
+        // ==================== LOW TEMPLATE Q_Q ====================
+        s2_low_q_q_partial[0] = s1_reg_low_q_q_prod[0] + s1_reg_low_q_q_prod[1] + 
+                                s1_reg_low_q_q_prod[2] + s1_reg_low_q_q_prod[3];
+        
+        s2_low_q_q_partial[1] = s1_reg_low_q_q_prod[4] + s1_reg_low_q_q_prod[5] + 
+                                s1_reg_low_q_q_prod[6] + s1_reg_low_q_q_prod[7];
+        
+        s2_low_q_q_partial[2] = s1_reg_low_q_q_prod[8] + s1_reg_low_q_q_prod[9] + 
+                                s1_reg_low_q_q_prod[10] + s1_reg_low_q_q_prod[11];
+        
+        s2_low_q_q_partial[3] = s1_reg_low_q_q_prod[12] + s1_reg_low_q_q_prod[13] + 
+                                s1_reg_low_q_q_prod[14] + s1_reg_low_q_q_prod[15];
+
+        // ==================== HIGH TEMPLATE I ====================
+        s2_high_i_i_partial[0] = s1_reg_high_i_i_prod[0] + s1_reg_high_i_i_prod[1] + 
+                                s1_reg_high_i_i_prod[2] + s1_reg_high_i_i_prod[3];
+        
+        s2_high_i_i_partial[1] = s1_reg_high_i_i_prod[4] + s1_reg_high_i_i_prod[5] + 
+                                s1_reg_high_i_i_prod[6] + s1_reg_high_i_i_prod[7];
+        
+        s2_high_i_i_partial[2] = s1_reg_high_i_i_prod[8] + s1_reg_high_i_i_prod[9] + 
+                                s1_reg_high_i_i_prod[10] + s1_reg_high_i_i_prod[11];
+        
+        s2_high_i_i_partial[3] = s1_reg_high_i_i_prod[12] + s1_reg_high_i_i_prod[13] + 
+                                s1_reg_high_i_i_prod[14] + s1_reg_high_i_i_prod[15];
+
+        // ==================== HIGH TEMPLATE Q_I ====================
+        s2_high_q_i_partial[0] = s1_reg_high_q_i_prod[0] + s1_reg_high_q_i_prod[1] + 
+                                s1_reg_high_q_i_prod[2] + s1_reg_high_q_i_prod[3];
+        
+        s2_high_q_i_partial[1] = s1_reg_high_q_i_prod[4] + s1_reg_high_q_i_prod[5] + 
+                                s1_reg_high_q_i_prod[6] + s1_reg_high_q_i_prod[7];
+        
+        s2_high_q_i_partial[2] = s1_reg_high_q_i_prod[8] + s1_reg_high_q_i_prod[9] + 
+                                s1_reg_high_q_i_prod[10] + s1_reg_high_q_i_prod[11];
+        
+        s2_high_q_i_partial[3] = s1_reg_high_q_i_prod[12] + s1_reg_high_q_i_prod[13] + 
+                                s1_reg_high_q_i_prod[14] + s1_reg_high_q_i_prod[15];
+
+        // ==================== HIGH TEMPLATE I_Q ====================
+        s2_high_i_q_partial[0] = s1_reg_high_i_q_prod[0] + s1_reg_high_i_q_prod[1] + 
+                                s1_reg_high_i_q_prod[2] + s1_reg_high_i_q_prod[3];
+        
+        s2_high_i_q_partial[1] = s1_reg_high_i_q_prod[4] + s1_reg_high_i_q_prod[5] + 
+                                s1_reg_high_i_q_prod[6] + s1_reg_high_i_q_prod[7];
+        
+        s2_high_i_q_partial[2] = s1_reg_high_i_q_prod[8] + s1_reg_high_i_q_prod[9] + 
+                                s1_reg_high_i_q_prod[10] + s1_reg_high_i_q_prod[11];
+        
+        s2_high_i_q_partial[3] = s1_reg_high_i_q_prod[12] + s1_reg_high_i_q_prod[13] + 
+                                s1_reg_high_i_q_prod[14] + s1_reg_high_i_q_prod[15];
+
+        // ==================== HIGH TEMPLATE Q_Q ====================
+        s2_high_q_q_partial[0] = s1_reg_high_q_q_prod[0] + s1_reg_high_q_q_prod[1] + 
+                                s1_reg_high_q_q_prod[2] + s1_reg_high_q_q_prod[3];
+        
+        s2_high_q_q_partial[1] = s1_reg_high_q_q_prod[4] + s1_reg_high_q_q_prod[5] + 
+                                s1_reg_high_q_q_prod[6] + s1_reg_high_q_q_prod[7];
+        
+        s2_high_q_q_partial[2] = s1_reg_high_q_q_prod[8] + s1_reg_high_q_q_prod[9] + 
+                                s1_reg_high_q_q_prod[10] + s1_reg_high_q_q_prod[11];
+        
+        s2_high_q_q_partial[3] = s1_reg_high_q_q_prod[12] + s1_reg_high_q_q_prod[13] + 
+                                s1_reg_high_q_q_prod[14] + s1_reg_high_q_q_prod[15];
+    end
+
+
+    // STAGE 3: Final Correlation Sums (4 → 1)
+    // Combinational: Sum the 4 partial sums
+    logic signed [PROD_SUM_WIDTH-1:0] s3_low_i_i_sum;
+    logic signed [PROD_SUM_WIDTH-1:0] s3_low_q_i_sum;
+    logic signed [PROD_SUM_WIDTH-1:0] s3_low_i_q_sum;
+    logic signed [PROD_SUM_WIDTH-1:0] s3_low_q_q_sum;
+    logic signed [PROD_SUM_WIDTH-1:0] s3_high_i_i_sum;
+    logic signed [PROD_SUM_WIDTH-1:0] s3_high_q_i_sum;
+    logic signed [PROD_SUM_WIDTH-1:0] s3_high_i_q_sum;
+    logic signed [PROD_SUM_WIDTH-1:0] s3_high_q_q_sum;
+
+    // Registered: Store the final correlation sums
+    logic signed [PROD_SUM_WIDTH-1:0] s3_reg_low_i_i_sum;
+    logic signed [PROD_SUM_WIDTH-1:0] s3_reg_low_q_i_sum;
+    logic signed [PROD_SUM_WIDTH-1:0] s3_reg_low_i_q_sum;
+    logic signed [PROD_SUM_WIDTH-1:0] s3_reg_low_q_q_sum;
+    logic signed [PROD_SUM_WIDTH-1:0] s3_reg_high_i_i_sum;
+    logic signed [PROD_SUM_WIDTH-1:0] s3_reg_high_q_i_sum;
+    logic signed [PROD_SUM_WIDTH-1:0] s3_reg_high_i_q_sum;
+    logic signed [PROD_SUM_WIDTH-1:0] s3_reg_high_q_q_sum;
+
+
+    // STAGE 3 COMBINATIONAL: Final Correlation Sums
+    always_comb begin
+        // Sum the 4 partial sums to get final correlation
+        s3_low_i_i_sum = s2_reg_low_i_i_partial[0] + s2_reg_low_i_i_partial[1] + 
+                        s2_reg_low_i_i_partial[2] + s2_reg_low_i_i_partial[3];
+        
+        s3_low_q_i_sum = s2_reg_low_q_i_partial[0] + s2_reg_low_q_i_partial[1] + 
+                        s2_reg_low_q_i_partial[2] + s2_reg_low_q_i_partial[3];
+        
+        s3_low_i_q_sum = s2_reg_low_i_q_partial[0] + s2_reg_low_i_q_partial[1] + 
+                        s2_reg_low_i_q_partial[2] + s2_reg_low_i_q_partial[3];
+        
+        s3_low_q_q_sum = s2_reg_low_q_q_partial[0] + s2_reg_low_q_q_partial[1] + 
+                        s2_reg_low_q_q_partial[2] + s2_reg_low_q_q_partial[3];
+        
+        s3_high_i_i_sum = s2_reg_high_i_i_partial[0] + s2_reg_high_i_i_partial[1] + 
+                        s2_reg_high_i_i_partial[2] + s2_reg_high_i_i_partial[3];
+        
+        s3_high_q_i_sum = s2_reg_high_q_i_partial[0] + s2_reg_high_q_i_partial[1] + 
+                        s2_reg_high_q_i_partial[2] + s2_reg_high_q_i_partial[3];
+        
+        s3_high_i_q_sum = s2_reg_high_i_q_partial[0] + s2_reg_high_i_q_partial[1] + 
+                        s2_reg_high_i_q_partial[2] + s2_reg_high_i_q_partial[3];
+        
+        s3_high_q_q_sum = s2_reg_high_q_q_partial[0] + s2_reg_high_q_q_partial[1] + 
+                        s2_reg_high_q_q_partial[2] + s2_reg_high_q_q_partial[3];
+    end
+
+    // Combinational: Square each correlation sum
+    logic signed [SQR_WIDTH-1:0] s4_low_i_i_sqr;
+    logic signed [SQR_WIDTH-1:0] s4_low_q_i_sqr;
+    logic signed [SQR_WIDTH-1:0] s4_low_i_q_sqr;
+    logic signed [SQR_WIDTH-1:0] s4_low_q_q_sqr;
+    logic signed [SQR_WIDTH-1:0] s4_high_i_i_sqr;
+    logic signed [SQR_WIDTH-1:0] s4_high_q_i_sqr;
+    logic signed [SQR_WIDTH-1:0] s4_high_i_q_sqr;
+    logic signed [SQR_WIDTH-1:0] s4_high_q_q_sqr;
+
+    // Registered: Store the squared values
+    logic signed [SQR_WIDTH-1:0] s4_reg_low_i_i_sqr;
+    logic signed [SQR_WIDTH-1:0] s4_reg_low_q_i_sqr;
+    logic signed [SQR_WIDTH-1:0] s4_reg_low_i_q_sqr;
+    logic signed [SQR_WIDTH-1:0] s4_reg_low_q_q_sqr;
+    logic signed [SQR_WIDTH-1:0] s4_reg_high_i_i_sqr;
+    logic signed [SQR_WIDTH-1:0] s4_reg_high_q_i_sqr;
+    logic signed [SQR_WIDTH-1:0] s4_reg_high_i_q_sqr;
+    logic signed [SQR_WIDTH-1:0] s4_reg_high_q_q_sqr;
+
+
+        // STAGE 4 COMBINATIONAL: Squaring
+    always_comb begin
+        // Square each correlation sum
+        s4_low_i_i_sqr = s3_reg_low_i_i_sum * s3_reg_low_i_i_sum;
+        s4_low_q_i_sqr = s3_reg_low_q_i_sum * s3_reg_low_q_i_sum;
+        s4_low_i_q_sqr = s3_reg_low_i_q_sum * s3_reg_low_i_q_sum;
+        s4_low_q_q_sqr = s3_reg_low_q_q_sum * s3_reg_low_q_q_sum;
+        
+        s4_high_i_i_sqr = s3_reg_high_i_i_sum * s3_reg_high_i_i_sum;
+        s4_high_q_i_sqr = s3_reg_high_q_i_sum * s3_reg_high_q_i_sum;
+        s4_high_i_q_sqr = s3_reg_high_i_q_sum * s3_reg_high_i_q_sum;
+        s4_high_q_q_sqr = s3_reg_high_q_q_sum * s3_reg_high_q_q_sum;
+    end
+
+    // STAGE 5: Final Scores and Comparison
+    // Combinational: Sum the 4 squared values for each score
+    logic signed [SCORE_WIDTH-1:0] s5_low_score;
+    logic signed [SCORE_WIDTH-1:0] s5_high_score;
+
+    // Registered: Store the final scores
+    logic signed [SCORE_WIDTH-1:0] s5_reg_low_score;
+    logic signed [SCORE_WIDTH-1:0] s5_reg_high_score;
+
+    always_comb begin
+        // Low score = sum of 4 low template squared correlations
+        s5_low_score = s4_reg_low_i_i_sqr + s4_reg_low_q_i_sqr + 
+                    s4_reg_low_i_q_sqr + s4_reg_low_q_q_sqr;
+        
+        // High score = sum of 4 high template squared correlations
+        s5_high_score = s4_reg_high_i_i_sqr + s4_reg_high_q_i_sqr + 
+                        s4_reg_high_i_q_sqr + s4_reg_high_q_q_sqr;
+    end
+
+    // output
+    always_comb begin
+        // Demodulated bit: 1 if high score wins, 0 if low score wins
+        demodulated_bit = s5_reg_high_score > s5_reg_low_score;
+    end
+
+
+    // pipeline update
+    always_ff @(posedge clk or negedge resetn) begin
+        if (~resetn) begin
+            // ===== STAGE 1 RESET =====
+            for (int i = 0; i < 16; i++) begin
+                s1_reg_low_i_i_prod[i] <= 0;
+                s1_reg_low_q_i_prod[i] <= 0;
+                s1_reg_low_i_q_prod[i] <= 0;
+                s1_reg_low_q_q_prod[i] <= 0;
+                s1_reg_high_i_i_prod[i] <= 0;
+                s1_reg_high_q_i_prod[i] <= 0;
+                s1_reg_high_i_q_prod[i] <= 0;
+                s1_reg_high_q_q_prod[i] <= 0;
+            end
+            
+            // ===== STAGE 2 RESET =====
+            for (int i = 0; i < 4; i++) begin
+                s2_reg_low_i_i_partial[i] <= 0;
+                s2_reg_low_q_i_partial[i] <= 0;
+                s2_reg_low_i_q_partial[i] <= 0;
+                s2_reg_low_q_q_partial[i] <= 0;
+                s2_reg_high_i_i_partial[i] <= 0;
+                s2_reg_high_q_i_partial[i] <= 0;
+                s2_reg_high_i_q_partial[i] <= 0;
+                s2_reg_high_q_q_partial[i] <= 0;
+            end
+            
+            // ===== STAGE 3 RESET =====
+            s3_reg_low_i_i_sum <= 0;
+            s3_reg_low_q_i_sum <= 0;
+            s3_reg_low_i_q_sum <= 0;
+            s3_reg_low_q_q_sum <= 0;
+            s3_reg_high_i_i_sum <= 0;
+            s3_reg_high_q_i_sum <= 0;
+            s3_reg_high_i_q_sum <= 0;
+            s3_reg_high_q_q_sum <= 0;
+            
+            // ===== STAGE 4 RESET =====
+            s4_reg_low_i_i_sqr <= 0;
+            s4_reg_low_q_i_sqr <= 0;
+            s4_reg_low_i_q_sqr <= 0;
+            s4_reg_low_q_q_sqr <= 0;
+            s4_reg_high_i_i_sqr <= 0;
+            s4_reg_high_q_i_sqr <= 0;
+            s4_reg_high_i_q_sqr <= 0;
+            s4_reg_high_q_q_sqr <= 0;
+            
+            // ===== STAGE 5 RESET =====
+            s5_reg_low_score <= 0;
+            s5_reg_high_score <= 0;
+            
+        end else if (en) begin
+            // ===== STAGE 1 UPDATE =====
+            for (int i = 0; i < 16; i++) begin
+                s1_reg_low_i_i_prod[i] <= s1_low_i_i_prod[i];
+                s1_reg_low_q_i_prod[i] <= s1_low_q_i_prod[i];
+                s1_reg_low_i_q_prod[i] <= s1_low_i_q_prod[i];
+                s1_reg_low_q_q_prod[i] <= s1_low_q_q_prod[i];
+                s1_reg_high_i_i_prod[i] <= s1_high_i_i_prod[i];
+                s1_reg_high_q_i_prod[i] <= s1_high_q_i_prod[i];
+                s1_reg_high_i_q_prod[i] <= s1_high_i_q_prod[i];
+                s1_reg_high_q_q_prod[i] <= s1_high_q_q_prod[i];
+            end
+            
+            // ===== STAGE 2 UPDATE =====
+            for (int i = 0; i < 4; i++) begin
+                s2_reg_low_i_i_partial[i] <= s2_low_i_i_partial[i];
+                s2_reg_low_q_i_partial[i] <= s2_low_q_i_partial[i];
+                s2_reg_low_i_q_partial[i] <= s2_low_i_q_partial[i];
+                s2_reg_low_q_q_partial[i] <= s2_low_q_q_partial[i];
+                s2_reg_high_i_i_partial[i] <= s2_high_i_i_partial[i];
+                s2_reg_high_q_i_partial[i] <= s2_high_q_i_partial[i];
+                s2_reg_high_i_q_partial[i] <= s2_high_i_q_partial[i];
+                s2_reg_high_q_q_partial[i] <= s2_high_q_q_partial[i];
+            end
+            
+            // ===== STAGE 3 UPDATE =====
+            s3_reg_low_i_i_sum <= s3_low_i_i_sum;
+            s3_reg_low_q_i_sum <= s3_low_q_i_sum;
+            s3_reg_low_i_q_sum <= s3_low_i_q_sum;
+            s3_reg_low_q_q_sum <= s3_low_q_q_sum;
+            s3_reg_high_i_i_sum <= s3_high_i_i_sum;
+            s3_reg_high_q_i_sum <= s3_high_q_i_sum;
+            s3_reg_high_i_q_sum <= s3_high_i_q_sum;
+            s3_reg_high_q_q_sum <= s3_high_q_q_sum;
+            
+            // ===== STAGE 4 UPDATE =====
+            s4_reg_low_i_i_sqr <= s4_low_i_i_sqr;
+            s4_reg_low_q_i_sqr <= s4_low_q_i_sqr;
+            s4_reg_low_i_q_sqr <= s4_low_i_q_sqr;
+            s4_reg_low_q_q_sqr <= s4_low_q_q_sqr;
+            s4_reg_high_i_i_sqr <= s4_high_i_i_sqr;
+            s4_reg_high_q_i_sqr <= s4_high_q_i_sqr;
+            s4_reg_high_i_q_sqr <= s4_high_i_q_sqr;
+            s4_reg_high_q_q_sqr <= s4_high_q_q_sqr;
+            
+            // ===== STAGE 5 UPDATE =====
+            s5_reg_low_score <= s5_low_score;
+            s5_reg_high_score <= s5_high_score;
+        end
     end
 
 endmodule

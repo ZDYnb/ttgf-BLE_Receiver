@@ -164,7 +164,7 @@ async def test_simple_packet(dut):
     dut._log.info("=" * 60)
     
     # Start clock (16 MHz = 62.5 ns period)
-    clock = Clock(dut.clk, 62.5, units="ns")
+    clock = Clock(dut.clk, 62.5, unit="ns")
     cocotb.start_soon(clock.start())
     
     # Reset
@@ -192,7 +192,7 @@ async def test_packet_with_noise(dut):
     dut._log.info("=" * 60)
     
     # Start clock
-    clock = Clock(dut.clk, 62.5, units="ns")
+    clock = Clock(dut.clk, 62.5, unit="ns")
     cocotb.start_soon(clock.start())
     
     # Reset
@@ -253,7 +253,7 @@ async def test_design_basics(dut):
     dut._log.info("=" * 60)
     
     # Start clock
-    clock = Clock(dut.clk, 62.5, units="ns")
+    clock = Clock(dut.clk, 62.5, unit="ns")
     cocotb.start_soon(clock.start())
     
     # Reset

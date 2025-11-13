@@ -1,3 +1,5 @@
+(* keep_hierarchy = "yes" *)
+(* max_fanout = 16 *)
 module clock_recovery # (
     parameter SAMPLE_RATE = 16,
     parameter E_K_SHIFT = 2,
@@ -18,13 +20,17 @@ module clock_recovery # (
     localparam PIPELINE_STAGES = 9;
 
     logic [$clog2(SAMPLE_RATE):0] error_calc_counter, shift_counter;
-    localparam BUFFER_SIZE = SAMPLE_RATE + 3;
-    logic signed [BUFFER_SIZE-1:0][DATA_WIDTH-1:0] I_k, Q_k;
+    logic signed [DATA_WIDTH-1:0] sample_at_0_i, sample_at_0_q;
+    logic signed [DATA_WIDTH-1:0] sample_at_2_i, sample_at_2_q;
+    logic signed [DATA_WIDTH-1:0] sample_at_16_i, sample_at_16_q;
+    logic signed [DATA_WIDTH-1:0] sample_at_18_i, sample_at_18_q;
+    logic [4:0] time_counter;
 
     // Variables to store the inputs to error calculation
     logic signed [DATA_WIDTH-1:0] i_1, q_1, i_2, q_2, i_3, q_3, i_4, q_4;
 
-    localparam ERROR_RES = 18 + 0;
+    // localparam ERROR_RES = 18 + 0;
+    localparam ERROR_RES = 14; 
     localparam TAU_RES = ERROR_RES - TAU_SHIFT;
     localparam E_K_RES = ERROR_RES - E_K_SHIFT;
     localparam D_TAU_RES = $clog2(SAMPLE_RATE + 1);
@@ -33,14 +39,14 @@ module clock_recovery # (
 
     // STAGE 1: COMBINATIONAL (Sample Extraction)
     always_comb begin
-        i_1 = I_k[0 + SAMPLE_RATE];
-        q_1 = Q_k[0 + SAMPLE_RATE];
-        i_2 = I_k[0];
-        q_2 = Q_k[0];
-        i_3 = I_k[2 + SAMPLE_RATE];
-        q_3 = Q_k[2 + SAMPLE_RATE];
-        i_4 = I_k[2];
-        q_4 = Q_k[2];
+        i_1 = sample_at_16_i;  // I_k[16]
+        q_1 = sample_at_16_q;  // Q_k[16]
+        i_2 = sample_at_0_i;   // I_k[0]
+        q_2 = sample_at_0_q;   // Q_k[0]
+        i_3 = sample_at_18_i;  // I_k[18]
+        q_3 = sample_at_18_q;  // Q_k[18]
+        i_4 = sample_at_2_i;   // I_k[2]
+        q_4 = sample_at_2_q;   // Q_k[2]
     end
 
     // STAGE 2: Squaring (First Pipeline Register)
@@ -173,7 +179,6 @@ module clock_recovery # (
     // STAGE 4: Second Products (iq_12, iq_34)
     // Declare Stage 4 registers
     logic signed [ERROR_RES-1:0] stage4_iq_12, stage4_iq_34;
-
     logic signed [2*DATA_WIDTH-1:0] stage4_i_1_sqr, stage4_q_1_sqr;
     logic signed [2*DATA_WIDTH-1:0] stage4_i_2_sqr, stage4_q_2_sqr;
     logic signed [2*DATA_WIDTH-1:0] stage4_i_3_sqr, stage4_q_3_sqr;
@@ -183,8 +188,10 @@ module clock_recovery # (
     logic signed [ERROR_RES-1:0] iq_12, iq_34;
 
     always_comb begin
-        // Compute iq_12 and iq_34 (2 multipliers in parallel)
         iq_12 = stage3_iq_1 * stage3_iq_2;
+    end
+
+    always_comb begin
         iq_34 = stage3_iq_3 * stage3_iq_4;
     end
 
@@ -384,8 +391,15 @@ end
             dtau <= 0;
             shift_counter <= -PIPELINE_STAGES;  // Account for pipeline delay
             error_calc_counter <= 0;
-            I_k <= 0;
-            Q_k <= 0;
+        time_counter <= 0;
+        sample_at_0_i <= 0;
+        sample_at_0_q <= 0;
+        sample_at_2_i <= 0;
+        sample_at_2_q <= 0;
+        sample_at_16_i <= 0;
+        sample_at_16_q <= 0;
+        sample_at_18_i <= 0;
+        sample_at_18_q <= 0;
         end else if (en) begin
             if (do_error_calc) begin
                 // Store tau estimates and calculate dtau
@@ -406,10 +420,26 @@ end
             end else if (preamble_detected) begin
                 error_calc_counter <= (SAMPLE_RATE >> 1) - SAMPLE_POS;
             end
-
+            time_counter <= (time_counter == (SAMPLE_RATE + 2)) ? 5'd0 : time_counter + 5'd1;
             // Shift samples in buffer
-            I_k <= {i_data, I_k[BUFFER_SIZE-1:1]};
-            Q_k <= {q_data, Q_k[BUFFER_SIZE-1:1]};
+            case (time_counter)
+                5'd0: begin
+                    sample_at_0_i <= i_data;
+                    sample_at_0_q <= q_data;
+                end
+                5'd2: begin
+                    sample_at_2_i <= i_data;
+                    sample_at_2_q <= q_data;
+                end
+                5'd16: begin
+                    sample_at_16_i <= i_data;
+                    sample_at_16_q <= q_data;
+                end
+                5'd18: begin
+                    sample_at_18_i <= i_data;
+                    sample_at_18_q <= q_data;
+                end
+            endcase
         end
     end
 

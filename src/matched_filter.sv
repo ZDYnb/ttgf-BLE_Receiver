@@ -44,15 +44,40 @@ module matched_filter #(
     +--------------+----+----+----+----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+
 */
 
-    // Define buffer for input data
-    logic signed [SAMPLE_RATE-1:0][DATA_WIDTH-1:0] i_buffer, q_buffer;
+     logic signed [DATA_WIDTH-1:0] ring_i [0:15];
+    logic signed [DATA_WIDTH-1:0] ring_q [0:15];
+    logic [3:0] write_ptr;
+    
+    // Index mapping to convert ring → linear view
+    logic [3:0] idx [0:15];
+    always_comb begin
+        for (int i = 0; i < 16; i++) begin
+            idx[i] = (write_ptr - i) & 4'hF;
+        end
+    end
+    
+    // Virtual buffer view (so rest of code doesn't change)
+    logic signed [DATA_WIDTH-1:0] i_buffer [0:15];
+    logic signed [DATA_WIDTH-1:0] q_buffer [0:15];
+    always_comb begin
+        for (int i = 0; i < 16; i++) begin
+            i_buffer[i] = ring_i[idx[i]];
+            q_buffer[i] = ring_q[idx[i]];
+        end
+    end
+    
+    // Ring buffer update
     always_ff @(posedge clk or negedge resetn) begin
         if (~resetn) begin
-            i_buffer <= 0;
-            q_buffer <= 0;
+            write_ptr <= 0;
+            for (int i = 0; i < 16; i++) begin
+                ring_i[i] <= 0;
+                ring_q[i] <= 0;
+            end
         end else if (en) begin
-            i_buffer <= {i_buffer[SAMPLE_RATE-2:0], i_data};
-            q_buffer <= {q_buffer[SAMPLE_RATE-2:0], q_data};
+            ring_i[write_ptr] <= i_data;
+            ring_q[write_ptr] <= q_data;
+            write_ptr <= write_ptr + 1;
         end
     end
     

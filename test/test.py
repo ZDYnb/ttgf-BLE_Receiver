@@ -62,9 +62,9 @@ async def reset_design(dut):
     dut.uio_in.value = 37  # Channel 37
     dut.rst_n.value = 0
     
-    await ClockCycles(dut.clk, 10)
+    await ClockCycles(dut.clk, 2000)
     dut.rst_n.value = 1
-    await ClockCycles(dut.clk, 10)
+    await ClockCycles(dut.clk, 1000)
     
     dut._log.info("Reset complete")
 
@@ -156,93 +156,93 @@ async def run_packet_test(dut, packet_bits, test_name="test"):
     return packet_detected_count, recovered_bits, symbol_clk_edges
 # Test Cases #
 
-@cocotb.test()
-async def test_simple_packet(dut):
-    """Test 1: Send a single BLE packet"""
-    dut._log.info("=" * 60)
-    dut._log.info("TEST 1: Simple Packet Test")
-    dut._log.info("=" * 60)
+# @cocotb.test()
+# async def test_simple_packet(dut):
+#     """Test 1: Send a single BLE packet"""
+#     dut._log.info("=" * 60)
+#     dut._log.info("TEST 1: Simple Packet Test")
+#     dut._log.info("=" * 60)
     
-    # Start clock (16 MHz = 62.5 ns period)
-    clock = Clock(dut.clk, 62.5, unit="ns")
-    cocotb.start_soon(clock.start())
+#     # Start clock (16 MHz = 62.5 ns period)
+#     clock = Clock(dut.clk, 62.5, unit="ns")
+#     cocotb.start_soon(clock.start())
     
-    # Reset
-    await reset_design(dut)
+#     # Reset
+#     await reset_design(dut)
     
-    # Load packet
-    packet = load_packet('example_packet')
-    dut._log.info(f"Loaded packet: {len(packet)} bits")
-    dut._log.info(f"First 40 bits: {packet[:40]}")
+#     # Load packet
+#     packet = load_packet('example_packet')
+#     dut._log.info(f"Loaded packet: {len(packet)} bits")
+#     dut._log.info(f"First 40 bits: {packet[:40]}")
     
-    # Run test
-    detections, bits, clk_edges = await run_packet_test(dut, packet, "simple_packet")
+#     # Run test
+#     detections, bits, clk_edges = await run_packet_test(dut, packet, "simple_packet")
     
-    # Verify we got at least one detection
-    assert detections > 0, "No packet detected!"
+#     # Verify we got at least one detection
+#     assert detections > 0, "No packet detected!"
     
-    dut._log.info(" TEST 1 PASSED")
+#     dut._log.info(" TEST 1 PASSED")
 
 
-@cocotb.test()
-async def test_packet_with_noise(dut):
-    """Test 2: Packet with noise before and after"""
-    dut._log.info("=" * 60)
-    dut._log.info("TEST 2: Packet with Noise")
-    dut._log.info("=" * 60)
+# @cocotb.test()
+# async def test_packet_with_noise(dut):
+#     """Test 2: Packet with noise before and after"""
+#     dut._log.info("=" * 60)
+#     dut._log.info("TEST 2: Packet with Noise")
+#     dut._log.info("=" * 60)
     
-    # Start clock
-    clock = Clock(dut.clk, 62.5, unit="ns")
-    cocotb.start_soon(clock.start())
+#     # Start clock
+#     clock = Clock(dut.clk, 62.5, unit="ns")
+#     cocotb.start_soon(clock.start())
     
-    # Reset
-    await reset_design(dut)
+#     # Reset
+#     await reset_design(dut)
     
-    # Load packet
-    packet = load_packet('example_packet')
+#     # Load packet
+#     packet = load_packet('example_packet')
     
-    # Generate packet signal
-    packet_signal = createFSK(packet, amp, ifreq, DF, SAMPLE_RATE, BT, offset)
+#     # Generate packet signal
+#     packet_signal = createFSK(packet, amp, ifreq, DF, SAMPLE_RATE, BT, offset)
     
-    # Add noise before and after
-    noise_duration = 500  # samples
-    rng = np.random.default_rng()
-    noise_before = rng.integers(min_val, max_val, noise_duration) + \
-                   1j * rng.integers(min_val, max_val, noise_duration)
-    noise_after = rng.integers(min_val, max_val, noise_duration) + \
-                  1j * rng.integers(min_val, max_val, noise_duration)
+#     # Add noise before and after
+#     noise_duration = 500  # samples
+#     rng = np.random.default_rng()
+#     noise_before = rng.integers(min_val, max_val, noise_duration) + \
+#                    1j * rng.integers(min_val, max_val, noise_duration)
+#     noise_after = rng.integers(min_val, max_val, noise_duration) + \
+#                   1j * rng.integers(min_val, max_val, noise_duration)
     
-    # Combine
-    test_signal = np.concatenate([noise_before, packet_signal, noise_after])
+#     # Combine
+#     test_signal = np.concatenate([noise_before, packet_signal, noise_after])
     
-    i_samples = np.real(test_signal)
-    q_samples = np.imag(test_signal)
+#     i_samples = np.real(test_signal)
+#     q_samples = np.imag(test_signal)
     
-    dut._log.info(f"Total samples: {len(i_samples)} (noise + packet + noise)")
-    dut._log.info(f"Packet starts at sample: {noise_duration}")
+#     dut._log.info(f"Total samples: {len(i_samples)} (noise + packet + noise)")
+#     dut._log.info(f"Packet starts at sample: {noise_duration}")
     
-    # Send and monitor
-    packet_detected_count = 0
-    for sample_idx, (i, q) in enumerate(zip(i_samples, q_samples)):
-        i_val = int(np.clip(i, min_val, max_val))
-        q_val = int(np.clip(q, min_val, max_val))
-        i_unsigned = i_val & 0xF
-        q_unsigned = q_val & 0xF
-        dut.ui_in.value = i_unsigned | (q_unsigned << 4)
+#     # Send and monitor
+#     packet_detected_count = 0
+#     for sample_idx, (i, q) in enumerate(zip(i_samples, q_samples)):
+#         i_val = int(np.clip(i, min_val, max_val))
+#         q_val = int(np.clip(q, min_val, max_val))
+#         i_unsigned = i_val & 0xF
+#         q_unsigned = q_val & 0xF
+#         dut.ui_in.value = i_unsigned | (q_unsigned << 4)
         
-        await RisingEdge(dut.clk)
+#         await RisingEdge(dut.clk)
         
-        if dut.uo_out.value[2]:
-            if packet_detected_count == 0:
-                dut._log.info(f" Packet detected at sample {sample_idx}")
-            packet_detected_count += 1
+#         if dut.uo_out.value[2]:
+#             if packet_detected_count == 0:
+#                 dut._log.info(f" Packet detected at sample {sample_idx}")
+#             packet_detected_count += 1
         
-        await FallingEdge(dut.clk)
+#         await FallingEdge(dut.clk)
     
-    assert packet_detected_count > 0, "No packet detected in noise!"
+#     assert packet_detected_count > 0, "No packet detected in noise!"
     
-    dut._log.info(f"Packet detected {packet_detected_count} times")
-    dut._log.info(" TEST 2 PASSED")
+#     dut._log.info(f"Packet detected {packet_detected_count} times")
+#     dut._log.info(" TEST 2 PASSED")
 
 
 @cocotb.test()

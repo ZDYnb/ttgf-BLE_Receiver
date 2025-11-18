@@ -24,10 +24,9 @@ module preamble_detect # (
     // Combinational logic for computing valid transitions
     logic [NUM_CHECKS-1:0] valid_transitions;
     logic current_transition;
-    int i, j;
+    integer i, j, k;  // ← ADD 'k' HERE
 
     // STAGE 1: COMBINATIONAL (Compute all checks in parallel)
-    //
     always_comb begin
         // Current transition
         current_transition = data_bit ^ last_bit;
@@ -48,9 +47,8 @@ module preamble_detect # (
         // Start with current transition
         preamble_detected = stage1_current_transition;
         
-        // AND all the registered valid_transition results
-        for (i = 0; i < NUM_CHECKS; i = i + 1) begin
-            preamble_detected = preamble_detected & stage1_valid_transitions[i];
+        for (k = 0; k < NUM_CHECKS; k = k + 1) begin
+            preamble_detected = preamble_detected & stage1_valid_transitions[k];
         end
     end
 

@@ -31,11 +31,7 @@
   "//": "https://tinytapeout.com/faq/#how-can-i-map-an-additional-external-clock-to-one-of-the-gpios",
   "CLOCK_PORT": "clk",
   "//": "Configuration docs: https://librelane.readthedocs.io/en/latest/reference/configuration.html",
-  "CLOCK_BUFFER_FANOUT": 8,
-  "CTS_CLK_BUFFER_FANOUT": 8,
-  "CTS_CLK_BUFFER_MAX_FANOUT": 8,
-  "CTS_CLK_BUFFER_MIN_FANOUT": 4,
-  "CTS_SINK_CLUSTERING_SIZE": 8,
+  
   "//": "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!",
   "//": "!!! DO NOT CHANGE ANYTHING BELOW THIS POINT !!!",
   "//": "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!",

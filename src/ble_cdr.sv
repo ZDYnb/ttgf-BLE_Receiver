@@ -29,11 +29,13 @@ module ble_cdr #(
 
     output logic demod_symbol, demod_symbol_clk,
 
+    /*verilator lint_off UNUSEDSIGNAL*/
     input logic [5:0] channel,
+    /*verilator lint_on UNUSEDSIGNAL*/
     output logic packet_detected
 );
 
-    localparam PIPELINE_STAGES = 1;
+    // localparam PIPELINE_STAGES = 1;
 
     // Matched filter stuff
     logic demod_bit;
@@ -99,9 +101,14 @@ module ble_cdr #(
 
 // `endif
 
-    always_comb begin
-        demod_symbol = demod_bit;
-        demod_symbol_clk = symbol_clk;
+    always_ff @(posedge clk or negedge resetn) begin
+        if (~resetn) begin
+            demod_symbol <= 0;
+            demod_symbol_clk <= 0;
+        end else begin
+            demod_symbol <= demod_bit;
+            demod_symbol_clk <= symbol_clk;
+        end
     end
 
     // Packet sniffer stuff
@@ -112,9 +119,10 @@ module ble_cdr #(
     always_ff @(posedge clk or negedge resetn) begin
         if (~resetn) begin
             latched_acc_addr <= 32'h6b7d9171;
-            latched_channel <= 37;
+            latched_channel <= channel;
             packet_detected <= 0;
         end else begin
+            latched_channel <= channel;
             packet_detected <= packet_detected_reg;
         end
     end

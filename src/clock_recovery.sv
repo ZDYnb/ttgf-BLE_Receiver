@@ -30,7 +30,7 @@ module clock_recovery # (
     logic signed [DATA_WIDTH-1:0] i_1, q_1, i_2, q_2, i_3, q_3, i_4, q_4;
 
     // localparam ERROR_RES = 18 + 0;
-    localparam ERROR_RES = 14; 
+    localparam ERROR_RES = 16; 
     localparam TAU_RES = ERROR_RES - TAU_SHIFT;
     localparam E_K_RES = ERROR_RES - E_K_SHIFT;
     localparam D_TAU_RES = $clog2(SAMPLE_RATE + 1);
@@ -228,15 +228,14 @@ module clock_recovery # (
 
     // STAGE 5: Compute Differences (i² - q²)
     // Declare Stage 5 registers
-    logic signed [ERROR_RES-1:0] stage5_diff_1, stage5_diff_2;
-    logic signed [ERROR_RES-1:0] stage5_diff_3, stage5_diff_4;
+    logic signed [2*DATA_WIDTH-1:0] stage5_diff_1, stage5_diff_2; 
+    logic signed [2*DATA_WIDTH-1:0] stage5_diff_3, stage5_diff_4; 
     logic signed [ERROR_RES-1:0] stage5_iq_12, stage5_iq_34;
 
     // Combinational logic
-    logic signed [ERROR_RES-1:0] diff_1, diff_2, diff_3, diff_4;
+    logic signed [2*DATA_WIDTH-1:0] diff_1, diff_2, diff_3, diff_4;
 
     always_comb begin
-        // ONLY subtractions (4 subtractions - very fast!)
         diff_1 = stage4_i_1_sqr - stage4_q_1_sqr;  // (i₁² - q₁²)
         diff_2 = stage4_i_2_sqr - stage4_q_2_sqr;  // (i₂² - q₂²)
         diff_3 = stage4_i_3_sqr - stage4_q_3_sqr;  // (i₃² - q₃²)
@@ -266,8 +265,7 @@ module clock_recovery # (
     // STAGE 6: Multiply Differences
     // Declare Stage 6 registers
     logic signed [ERROR_RES-1:0] stage6_prod_12, stage6_prod_34;
-    logic signed [ERROR_RES-1:0] stage6_iq_12, stage6_iq_34;
-
+    logic signed [ERROR_RES-1:0] stage6_iq_12, stage6_iq_34; 
     // Combinational logic
     logic signed [ERROR_RES-1:0] prod_12, prod_34;
 
@@ -346,10 +344,9 @@ module clock_recovery # (
 
 
     // STAGE 9: Compute Error e_k and Tau
-    logic signed [ERROR_RES-1:0] e_k, tau_int, tau_int_1;
-    logic signed [E_K_RES-1:0] e_k_shifted;
-    logic signed [TAU_RES-1:0] tau, tau_1;
-    logic signed [D_TAU_RES-1:0] dtau;
+    logic signed [ERROR_RES-1:0] tau_int_1;
+    logic signed [TAU_RES-1:0] tau_1;
+    logic signed [3:0] dtau;
 
     // Combinational logic for error calculation
     logic signed [ERROR_RES-1:0] e_k_comb, tau_int_comb;
@@ -364,15 +361,29 @@ module clock_recovery # (
         e_k_shifted_comb = e_k_comb[ERROR_RES-1:E_K_SHIFT];
         
         // Update tau integral
-        tau_int_comb = tau_int_1 - e_k_shifted_comb;
+        tau_int_comb = tau_int_1 - ERROR_RES'($signed(e_k_shifted_comb));
 
         // Extract tau from integral
         tau_comb = tau_int_comb[ERROR_RES-1:TAU_SHIFT];
     end
 
+logic signed [ERROR_RES-1:0] stage9_tau_int;
+logic signed [TAU_RES-1:0] stage9_tau;
+
+always_ff @(posedge clk or negedge resetn) begin
+    if (~resetn) begin     
+        stage9_tau_int <= 0;
+        stage9_tau <= 0;
+    end else if (en) begin
+        stage9_tau_int <= tau_int_comb;
+        stage9_tau <= tau_comb;
+    end
+end
+
 // Control logic and main state machine
 logic do_error_calc;
 logic [D_TAU_RES-1:0] shift_counter_p1;
+logic symbol_clk_next;
 
 always_comb begin
     // Determine if error calculation is scheduled
@@ -381,7 +392,16 @@ always_comb begin
                     (shift_counter_p1[D_TAU_RES-2:0] == dtau[D_TAU_RES-2:0]);
 
     // Output the symbol clock
-    symbol_clk = (shift_counter == SAMPLE_POS);
+    symbol_clk_next = (shift_counter == SAMPLE_POS);
+end
+
+// Register symbol_clk output
+always_ff @(posedge clk or negedge resetn) begin
+    if (~resetn) begin
+        symbol_clk <= 1'b0;
+    end else if (en) begin
+        symbol_clk <= symbol_clk_next;
+    end
 end
 
     always_ff @(posedge clk or negedge resetn) begin
@@ -403,10 +423,10 @@ end
         end else if (en) begin
             if (do_error_calc) begin
                 // Store tau estimates and calculate dtau
-                tau_int_1 <= tau_int_comb;  // Use combinational result
-                tau_1 <= tau_comb;          // Use combinational result
+                tau_int_1 <= stage9_tau_int;  //
+                tau_1 <= stage9_tau;
                 /* verilator lint_off WIDTHTRUNC */
-                dtau <= (tau_1 - tau_comb) >>> 0;
+                dtau <= (tau_1 - stage9_tau) >>> 0;
                 /* verilator lint_on WIDTHTRUNC */
                 shift_counter <= 0;
             end else begin
@@ -438,6 +458,9 @@ end
                 5'd18: begin
                     sample_at_18_i <= i_data;
                     sample_at_18_q <= q_data;
+                end
+                default: begin
+                    // Do nothing
                 end
             endcase
         end

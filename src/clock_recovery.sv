@@ -1,5 +1,3 @@
-(* keep_hierarchy = "yes" *)
-(* max_fanout = 16 *)
 module clock_recovery # (
     parameter SAMPLE_RATE = 16,
     parameter E_K_SHIFT = 2,
@@ -425,9 +423,7 @@ end
                 // Store tau estimates and calculate dtau
                 tau_int_1 <= stage9_tau_int;  //
                 tau_1 <= stage9_tau;
-                /* verilator lint_off WIDTHTRUNC */
                 dtau <= (tau_1 - stage9_tau) >>> 0;
-                /* verilator lint_on WIDTHTRUNC */
                 shift_counter <= 0;
             end else begin
                 // Increment shift counter

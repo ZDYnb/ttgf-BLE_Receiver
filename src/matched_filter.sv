@@ -51,10 +51,10 @@ module matched_filter #(
         // Define buffer for input data
     logic signed [SAMPLE_RATE-1:0][DATA_WIDTH-1:0] i_buffer, q_buffer;
     always_ff @(posedge clk or negedge resetn) begin
-        if (!resetn) begin
+        if (~resetn) begin
             for (int k = 0; k < SAMPLE_RATE; k++) begin
-                i_buffer[k] <= '0;
-                q_buffer[k] <= '0;
+                i_buffer[k] <= 0;
+                q_buffer[k] <= 0;
             end
         end else if (en) begin
             // shift the buffer one step

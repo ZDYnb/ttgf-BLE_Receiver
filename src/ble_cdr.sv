@@ -131,6 +131,7 @@ module ble_cdr #(
         .PACKET_LEN_MAX(MAX_PACKET_LEN),
         .PREAMBLE_LEN(PREAMBLE_LEN)
     ) ps (
+        .clk(clk),
         .symbol_clk(symbol_clk),
         .resetn(resetn),
         .en(en),

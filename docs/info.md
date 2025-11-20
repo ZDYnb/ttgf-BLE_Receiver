@@ -13,7 +13,7 @@ This project implements a Bluetooth Low Energy (BLE) digital baseband receiver d
 
 ## How to test
 
-Connect the SCuM chip. The chip as the BLE receiver’s digital baseband. Transmit BLE packets from the SCuM RF front-end and observe decoded packet data on a connected computer via serial output or debugging interface.
+Connect the SCuM chip. The chip as the BLE receiver’s digital baseband. Receive BLE I/Q samples from the SCuM RF front-end and observe decoded packet data on a connected computer via serial output or debugging interface.
 
 ## External hardware
 

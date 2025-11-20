@@ -1,5 +1,3 @@
-(* keep_hierarchy = "yes" *)
-(* max_fanout = 16 *)
 module clock_recovery # (
     parameter SAMPLE_RATE = 16,
     parameter E_K_SHIFT = 2,

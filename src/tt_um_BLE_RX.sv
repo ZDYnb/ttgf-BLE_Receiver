@@ -18,10 +18,6 @@ module tt_um_BLE_RX (
     assign uio_out = 8'h00;
     assign uio_oe  = 8'h00;
 
-    // ------------------------------------------------------------
-    // Reset + enable synchronization (clean, local control signals)
-    // ------------------------------------------------------------
-    // Make a clean synchronous active-high reset 'rst'
     logic rst_sync1, rst_sync2;
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
@@ -47,9 +43,6 @@ module tt_um_BLE_RX (
     end
     wire ena_sync = ena_ff2;
 
-    // ------------------------------------------------------------
-    // Boundary input registers (shorten pad -> flop paths)
-    // ------------------------------------------------------------
     localparam int DATA_WIDTH = 4;
 
     logic [DATA_WIDTH-1:0] I_BPF_r, Q_BPF_r;
@@ -67,9 +60,6 @@ module tt_um_BLE_RX (
         end
     end
 
-    // ------------------------------------------------------------
-    // Core instance (drive with synced reset/enable + registered IO)
-    // ------------------------------------------------------------
     logic demod_symbol;
     logic demod_symbol_clk;
     logic packet_detected;
@@ -92,9 +82,6 @@ module tt_um_BLE_RX (
         .packet_detected  (packet_detected)
     );
 
-    // ------------------------------------------------------------
-    // Boundary output registers (shorten flop -> pad paths)
-    // ------------------------------------------------------------
     logic [7:0] uo_out_r;
     always_ff @(posedge clk or posedge rst) begin
         if (rst) begin

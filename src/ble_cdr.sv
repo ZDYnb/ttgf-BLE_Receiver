@@ -14,7 +14,6 @@
 
 
 // `define MATCHED_FILTER_CLOCK_RECOVERY 1
-(* keep_hierarchy = "yes" *)
 module ble_cdr #(
     parameter SAMPLE_RATE = 16,
     parameter DATA_WIDTH = 4,

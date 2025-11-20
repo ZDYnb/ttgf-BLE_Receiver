@@ -12,8 +12,6 @@
 	|         ifreq         |     1250000.0     |
 	+-----------------------+-------------------+
 */
-(* keep_hierarchy = "yes" *)
-(* max_fanout = 16 *)
 module matched_filter #(
     parameter SAMPLE_RATE = 16,
     parameter DATA_WIDTH = 4
@@ -416,7 +414,7 @@ module matched_filter #(
     end
 
 
-    // STAGE 3: Final Correlation Sums (4 → 1)
+    // STAGE 3: Final Correlation Sums (4 to 1)
     // Combinational: Sum the 4 partial sums
     logic signed [PROD_SUM_WIDTH-1:0] s3_low_i_i_sum;
     logic signed [PROD_SUM_WIDTH-1:0] s3_low_q_i_sum;

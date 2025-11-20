@@ -316,7 +316,7 @@ async def test_debug_outputs(dut):
         dut.ui_in.value = i_unsigned | (q_unsigned << 4)
         
         await RisingEdge(dut.clk)
-        
+        await FallingEdge(dut.clk)
         # Capture outputs
         uo_val = int(dut.uo_out.value)
         demod_symbol = uo_val & 0x1
@@ -339,7 +339,7 @@ async def test_debug_outputs(dut):
             dut._log.info(f"  PACKET DETECTED @ sample {sample_idx}")
         
         symbol_clk_prev = symbol_clk
-        await FallingEdge(dut.clk)
+        # await FallingEdge(dut.clk)
     
     # Save to file
     import csv

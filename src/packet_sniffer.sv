@@ -20,8 +20,8 @@ module packet_sniffer #(
     input logic symbol_in,
 
     output logic packet_detected,
-    output logic [PACKET_LEN_MAX-PREAMBLE_LEN-1:0] packet_out,
-    output logic [$clog2(PACKET_LEN_MAX)-1:0] packet_len,
+    // output logic [PACKET_LEN_MAX-PREAMBLE_LEN-1:0] packet_out,
+    // output logic [$clog2(PACKET_LEN_MAX)-1:0] packet_len,
 
     input logic [ACC_ADDR_LEN-1:0] acc_addr,
     input logic [5:0] channel
@@ -48,15 +48,15 @@ module packet_sniffer #(
         end
     end
     
-    always_ff @(posedge packet_detected or negedge resetn) begin
-        if (~resetn) begin
-            packet_out <= 0;
-            packet_len <= 0;
-        end else begin
-            packet_out <= rx_buffer;
-            packet_len <= bit_counter + PREAMBLE_LEN + ACC_ADDR_LEN;
-        end
-    end
+    // always_ff @(posedge packet_detected or negedge resetn) begin
+    //     if (~resetn) begin
+    //         packet_out <= 0;
+    //         packet_len <= 0;
+    //     end else begin
+    //         packet_out <= rx_buffer;
+    //         packet_len <= bit_counter + PREAMBLE_LEN + ACC_ADDR_LEN;
+    //     end
+    // end
 
     // Control State Machine
 
@@ -156,8 +156,8 @@ module dewhiten (
         lfsr_next = {dewhiten_lfsr[0], dewhiten_lfsr[DEWHITEN_LEN-1:1]} ^ ({DEWHITEN_LEN{dewhiten_lfsr[0]}} & dewhiten_poly);
     end
 
-    always_ff @(posedge clk or posedge rst) begin
-        if (rst) begin
+    always_ff @(posedge clk or negedge rst) begin
+        if (~rst) begin
             dewhiten_lfsr <= {1'b1, dewhiten_init};
         end else begin
             dewhiten_lfsr <= (en) ? lfsr_next : dewhiten_lfsr;
@@ -187,8 +187,8 @@ module crc #(
         crc_pass = crc_lfsr == 0;
     end
 
-    always_ff @(negedge clk or posedge rst) begin
-        if (rst) begin
+    always_ff @(negedge clk or negedge rst) begin
+        if (~rst) begin
             crc_lfsr <= crc_init;
         end else begin
             crc_lfsr <= (en) ? lfsr_next : crc_lfsr;

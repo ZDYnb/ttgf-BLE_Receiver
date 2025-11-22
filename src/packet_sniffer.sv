@@ -156,7 +156,7 @@ module dewhiten (
         lfsr_next = {dewhiten_lfsr[0], dewhiten_lfsr[DEWHITEN_LEN-1:1]} ^ ({DEWHITEN_LEN{dewhiten_lfsr[0]}} & dewhiten_poly);
     end
 
-    always_ff @(posedge clk or posedge rst) begin
+    always_ff @(posedge clk) begin
         if (rst) begin
             dewhiten_lfsr <= {1'b1, dewhiten_init};
         end else begin
@@ -187,7 +187,7 @@ module crc #(
         crc_pass = crc_lfsr == 0;
     end
 
-    always_ff @(negedge clk or posedge rst) begin
+    always_ff @(negedge clk) begin
         if (rst) begin
             crc_lfsr <= crc_init;
         end else begin

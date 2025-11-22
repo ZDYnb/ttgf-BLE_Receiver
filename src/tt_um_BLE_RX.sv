@@ -1,8 +1,4 @@
 module tt_um_BLE_RX (
-`ifdef GL_TEST
-    input  logic VPWR,
-    input  logic VGND,
-`endif
     // Tiny Tapeout user interface
     input  logic [7:0] ui_in,    // dedicated inputs
     output logic [7:0] uo_out,   // dedicated outputs

@@ -109,16 +109,17 @@ module ble_cdr #(
     logic [5:0] latched_channel;
     logic packet_detected_reg;
 
+    assign latched_acc_addr = 32'h6b7d9171;
+    assign latched_channel = 6'd37;
+
+    // Keep the Flip-Flop ONLY for the signal that actually changes
     always_ff @(posedge clk or negedge resetn) begin
         if (~resetn) begin
-            latched_acc_addr <= 32'h6b7d9171;
-            latched_channel <= 37;
             packet_detected <= 0;
         end else begin
             packet_detected <= packet_detected_reg;
         end
     end
-
     packet_sniffer #(
         .PACKET_LEN_MAX(MAX_PACKET_LEN),
         .PREAMBLE_LEN(PREAMBLE_LEN)

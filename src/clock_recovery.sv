@@ -422,24 +422,25 @@ end
             end
             time_counter <= (time_counter == (SAMPLE_RATE + 2)) ? 5'd0 : time_counter + 5'd1;
             // Shift samples in buffer
-            case (time_counter)
-                5'd0: begin
-                    sample_at_0_i <= i_data;
-                    sample_at_0_q <= q_data;
-                end
-                5'd2: begin
-                    sample_at_2_i <= i_data;
-                    sample_at_2_q <= q_data;
-                end
-                5'd16: begin
-                    sample_at_16_i <= i_data;
-                    sample_at_16_q <= q_data;
-                end
-                5'd18: begin
-                    sample_at_18_i <= i_data;
-                    sample_at_18_q <= q_data;
-                end
-            endcase
+            if (time_counter == 5'd0) begin
+                sample_at_0_i <= i_data;
+                sample_at_0_q <= q_data;
+            end
+            
+            if (time_counter == 5'd2) begin
+                sample_at_2_i <= i_data;
+                sample_at_2_q <= q_data;
+            end
+
+            if (time_counter == 5'd16) begin
+                sample_at_16_i <= i_data;
+                sample_at_16_q <= q_data;
+            end
+
+            if (time_counter == 5'd18) begin
+                sample_at_18_i <= i_data;
+                sample_at_18_q <= q_data;
+            end
         end
     end
 

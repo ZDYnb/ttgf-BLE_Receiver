@@ -370,19 +370,19 @@ module clock_recovery # (
         tau_comb = tau_int_comb[ERROR_RES-1:TAU_SHIFT];
     end
 
-// Control logic and main state machine
-logic do_error_calc;
-logic [D_TAU_RES-1:0] shift_counter_p1;
+    // Control logic and main state machine
+    logic do_error_calc;
+    logic [D_TAU_RES-1:0] shift_counter_p1;
 
-always_comb begin
-    // Determine if error calculation is scheduled
-    shift_counter_p1 = (shift_counter + 1);
-    do_error_calc = (error_calc_counter == 1) | 
-                    (shift_counter_p1[D_TAU_RES-2:0] == dtau[D_TAU_RES-2:0]);
+    always_comb begin
+        // Determine if error calculation is scheduled
+        shift_counter_p1 = (shift_counter + 1);
+        do_error_calc = (error_calc_counter == 1) | 
+                        (shift_counter_p1[D_TAU_RES-2:0] == dtau[D_TAU_RES-2:0]);
 
-    // Output the symbol clock
-    symbol_clk = (shift_counter == SAMPLE_POS);
-end
+        // Output the symbol clock
+        symbol_clk = (shift_counter == SAMPLE_POS);
+    end
 
     always_ff @(posedge clk or negedge resetn) begin
         if (~resetn) begin

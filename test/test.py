@@ -85,6 +85,7 @@ async def test_debug_outputs(dut):
         'symbol_clk': [],
         'packet_detected': [],
         'uo_out_raw': [],
+        'preamble_detected': []
     }
 
     
@@ -103,14 +104,20 @@ async def test_debug_outputs(dut):
         i_unsigned = i_val & 0xF
         q_unsigned = q_val & 0xF
         dut.ui_in.value = i_unsigned | (q_unsigned << 4)
+
+        # Add channel to uio_in[1:0]
+        channel = 0  # 0=Ch37, 1=Ch38, 2=Ch39
+        dut.uio_in.value = channel & 0x3  # Mask to 2 bits
         
         await RisingEdge(dut.clk)
+        await Timer(60, unit='ns')
         
         # Capture outputs
         uo_val = int(dut.uo_out.value)
         demod_symbol = uo_val & 0x1
         symbol_clk = (uo_val >> 1) & 0x1
         packet_det = (uo_val >> 2) & 0x1
+        preamble_det = (uo_val >> 3) & 0x1
         
         # Store
         outputs['sample_idx'].append(sample_idx)
@@ -118,6 +125,7 @@ async def test_debug_outputs(dut):
         outputs['symbol_clk'].append(symbol_clk)
         outputs['packet_detected'].append(packet_det)
         outputs['uo_out_raw'].append(uo_val)
+        outputs['preamble_detected'].append(preamble_det)
         
         # # Log symbol clock edges
         # if symbol_clk and not symbol_clk_prev:
@@ -126,9 +134,11 @@ async def test_debug_outputs(dut):
         # Log packet detection
         if packet_det:
             dut._log.info(f"  PACKET DETECTED @ sample {sample_idx}")
+
+        if preamble_det:
+            dut._log.info(f"  PREAMBLE DETECTED @ sample {sample_idx}")
         
         symbol_clk_prev = symbol_clk
-        await FallingEdge(dut.clk)
     
     # Save to file and plot
     import csv
@@ -141,7 +151,8 @@ async def test_debug_outputs(dut):
                 outputs['demod_symbol'][i],
                 outputs['symbol_clk'][i],
                 outputs['packet_detected'][i],
-                outputs['uo_out_raw'][i]
+                outputs['uo_out_raw'][i],
+                outputs['preamble_detected'][i]
             ])
     dut._log.info("Saved outputs to output_capture.csv")
 
@@ -157,8 +168,9 @@ async def test_debug_outputs(dut):
         symclk = _np.array(outputs['symbol_clk'])
         pktdet = _np.array(outputs['packet_detected'])
         raw = _np.array(outputs['uo_out_raw'])
+        preamble = _np.array(outputs['preamble_detected'])
 
-        fig, axes = plt.subplots(4, 1, figsize=(10, 6), sharex=True)
+        fig, axes = plt.subplots(5, 1, figsize=(10, 8), sharex=True)
         axes[0].step(samples, demod, where='post', color='C0')
         axes[0].set_ylabel('demod_symbol')
         axes[0].grid(True)
@@ -175,6 +187,11 @@ async def test_debug_outputs(dut):
         axes[3].set_ylabel('uo_out_raw')
         axes[3].set_xlabel('sample')
         axes[3].grid(True)
+
+        axes[4].step(samples, preamble, where='post', color='C4')
+        axes[4].set_ylabel('preamble_detected')
+        axes[4].set_xlabel('sample')
+        axes[4].grid(True)
 
         plt.tight_layout()
         plt.savefig('output_capture.png', dpi=150)
@@ -193,6 +210,7 @@ async def test_debug_outputs(dut):
     dut._log.info(f"  Recovered bits: {''.join(map(str, recovered_bits))}")
     dut._log.info(f"  Original packet: {packet}")
     dut._log.info(f"  Packet detections: {sum(outputs['packet_detected'])}")
+    dut._log.info(f"  Preamble detections: {sum(outputs['preamble_detected'])}")
 
     if len(symbol_edges) > 1:
         periods = np.diff(symbol_edges)

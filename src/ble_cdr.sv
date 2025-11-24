@@ -28,6 +28,7 @@ module ble_cdr #(
     input logic [DATA_WIDTH-1:0] i_bpf, q_bpf,
 
     output logic demod_symbol, demod_symbol_clk,
+    output logic preamble_detected_out,
 
     input logic [5:0] channel,
     output logic packet_detected
@@ -79,6 +80,7 @@ module ble_cdr #(
 
     // Preamble Detection stuff
     logic preamble_detected;
+    assign preamble_detected_out = preamble_detected;
     preamble_detect #(
         .SAMPLE_RATE(SAMPLE_RATE)
     ) pd (

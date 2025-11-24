@@ -32,10 +32,7 @@
   "CLOCK_PORT": "clk",
 
   "//": "Configuration docs: https://librelane.readthedocs.io/en/latest/reference/configuration.html",
-
-  "//": "Overriding the excluded cell list to fix oai21_1 bug",
-  "SYNTH_EXCLUDED_CELL_FILE": "src/exclude.txt",
-  "PNR_EXCLUDED_CELL_FILE": "src/pnr_exclude.txt",
+  "MAX_FANOUT_CONSTRAINT": 6,
 
   "//": "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!",
   "//": "!!! DO NOT CHANGE ANYTHING BELOW THIS POINT !!!",

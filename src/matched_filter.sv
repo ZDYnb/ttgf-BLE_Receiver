@@ -37,11 +37,10 @@ module matched_filter #(
 
 
     localparam TEMPLATE_WIDTH = 5;
-    localparam PROD_WIDTH = 8;                                // Was 9
-    localparam PROD_SUM_WIDTH = 11;                           // Was 13, save 2 bits
-    localparam SQR_WIDTH = 22;                                // Was 26, save 4 bits
-    localparam SCORE_WIDTH = 23;                              // Was 27, save 4 bits
-
+    localparam PROD_WIDTH = DATA_WIDTH + TEMPLATE_WIDTH; // = 9
+    localparam PROD_SUM_WIDTH = $clog2(SAMPLE_RATE) + PROD_WIDTH; // = 13
+    localparam SQR_WIDTH = 2 * PROD_SUM_WIDTH; // = 26
+    localparam SCORE_WIDTH = SQR_WIDTH + 1; // = 27
 /*
     +--------------+----+----+----+----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+
     |   Template   |  0 |  1 |  2 |  3 |   4 |   5 |   6 |   7 |   8 |   9 |  10 |  11 |  12 |  13 |  14 |  15 |
@@ -65,9 +64,10 @@ module matched_filter #(
             q_buffer <= {q_buffer[SAMPLE_RATE-2:0], q_data};
         end
     end
-    // STAGE 1: Individual Products
 
-    // WIRES: Combinational outputs (computed every cycle)
+   // ========================================
+    // STAGE 1: Individual Products
+    // ========================================
     logic signed [PROD_WIDTH-1:0] s1_low_i_i_prod [0:15];
     logic signed [PROD_WIDTH-1:0] s1_low_q_i_prod [0:15];
     logic signed [PROD_WIDTH-1:0] s1_low_i_q_prod [0:15];
@@ -77,7 +77,6 @@ module matched_filter #(
     logic signed [PROD_WIDTH-1:0] s1_high_i_q_prod [0:15];
     logic signed [PROD_WIDTH-1:0] s1_high_q_q_prod [0:15];
 
-    // REGISTERS: Store the wire values (pipeline stage boundary)
     logic signed [PROD_WIDTH-1:0] s1_reg_low_i_i_prod [0:15];
     logic signed [PROD_WIDTH-1:0] s1_reg_low_q_i_prod [0:15];
     logic signed [PROD_WIDTH-1:0] s1_reg_low_i_q_prod [0:15];
@@ -88,203 +87,592 @@ module matched_filter #(
     logic signed [PROD_WIDTH-1:0] s1_reg_high_q_q_prod [0:15];
 
 
-    // STAGE 1 COMBINATIONAL: Individual Products
+    // BLOCK 1: LOW I×I (Template: 15, 14, 11, 6, 0, -6, -11, -14, -15, -14, -11, -6, 0, 6, 11, 14)
     always_comb begin
-        /*verilator lint_off WIDTH*/
-        // Template: 15, 14, 11, 6, 0, -6, -11, -14, -15, -14, -11, -6, 0, 6, 11, 14
-        s1_low_i_i_prod[15] = (i_buffer[15] << 0) + (i_buffer[15] << 1) + (i_buffer[15] << 2) + (i_buffer[15] << 3); // *15
-        s1_low_i_i_prod[14] = (i_buffer[14] << 1) + (i_buffer[14] << 2) + (i_buffer[14] << 3); // *14
-        s1_low_i_i_prod[13] = (i_buffer[13] << 0) + (i_buffer[13] << 1) + (i_buffer[13] << 3); // *11
-        s1_low_i_i_prod[12] = (i_buffer[12] << 1) + (i_buffer[12] << 2); // *6
-        s1_low_i_i_prod[11] = 0; // *0
-        s1_low_i_i_prod[10] = -((i_buffer[10] << 1) + (i_buffer[10] << 2)); // *-6
-        s1_low_i_i_prod[9] = -((i_buffer[9] << 0) + (i_buffer[9] << 1) + (i_buffer[9] << 3)); // *-11
-        s1_low_i_i_prod[8] = -((i_buffer[8] << 1) + (i_buffer[8] << 2) + (i_buffer[8] << 3)); // *-14
-        s1_low_i_i_prod[7] = -((i_buffer[7] << 0) + (i_buffer[7] << 1) + (i_buffer[7] << 2) + (i_buffer[7] << 3)); // *-15
-        s1_low_i_i_prod[6] = -((i_buffer[6] << 1) + (i_buffer[6] << 2) + (i_buffer[6] << 3)); // *-14
-        s1_low_i_i_prod[5] = -((i_buffer[5] << 0) + (i_buffer[5] << 1) + (i_buffer[5] << 3)); // *-11
-        s1_low_i_i_prod[4] = -((i_buffer[4] << 1) + (i_buffer[4] << 2)); // *-6
-        s1_low_i_i_prod[3] = 0; // *0
-        s1_low_i_i_prod[2] = (i_buffer[2] << 1) + (i_buffer[2] << 2); // *6
-        s1_low_i_i_prod[1] = (i_buffer[1] << 0) + (i_buffer[1] << 1) + (i_buffer[1] << 3); // *11
-        s1_low_i_i_prod[0] = (i_buffer[0] << 1) + (i_buffer[0] << 2) + (i_buffer[0] << 3); // *14
-        /*verilator lint_on WIDTH*/
+        logic signed [PROD_WIDTH-1:0] ext_val;
+        
+        // Index 15: *15 = 1 + 2 + 4 + 8
+        ext_val = {{5{i_buffer[15][DATA_WIDTH-1]}}, i_buffer[15]};
+        s1_low_i_i_prod[15] = ext_val + {ext_val[PROD_WIDTH-2:0], 1'b0} + 
+                              {ext_val[PROD_WIDTH-3:0], 2'b0} + {ext_val[PROD_WIDTH-4:0], 3'b0};
+        
+        // Index 14: *14 = 2 + 4 + 8
+        ext_val = {{5{i_buffer[14][DATA_WIDTH-1]}}, i_buffer[14]};
+        s1_low_i_i_prod[14] = {ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-3:0], 2'b0} + 
+                              {ext_val[PROD_WIDTH-4:0], 3'b0};
+        
+        // Index 13: *11 = 1 + 2 + 8
+        ext_val = {{5{i_buffer[13][DATA_WIDTH-1]}}, i_buffer[13]};
+        s1_low_i_i_prod[13] = ext_val + {ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-4:0], 3'b0};
+        
+        // Index 12: *6 = 2 + 4
+        ext_val = {{5{i_buffer[12][DATA_WIDTH-1]}}, i_buffer[12]};
+        s1_low_i_i_prod[12] = {ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-3:0], 2'b0};
+        
+        // Index 11: *0
+        s1_low_i_i_prod[11] = 9'sd0;
+        
+        // Index 10: *-6 = -(2 + 4)
+        ext_val = {{5{i_buffer[10][DATA_WIDTH-1]}}, i_buffer[10]};
+        s1_low_i_i_prod[10] = -({ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-3:0], 2'b0});
+        
+        // Index 9: *-11 = -(1 + 2 + 8)
+        ext_val = {{5{i_buffer[9][DATA_WIDTH-1]}}, i_buffer[9]};
+        s1_low_i_i_prod[9] = -(ext_val + {ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-4:0], 3'b0});
+        
+        // Index 8: *-14 = -(2 + 4 + 8)
+        ext_val = {{5{i_buffer[8][DATA_WIDTH-1]}}, i_buffer[8]};
+        s1_low_i_i_prod[8] = -({ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-3:0], 2'b0} + 
+                              {ext_val[PROD_WIDTH-4:0], 3'b0});
+        
+        // Index 7: *-15 = -(1 + 2 + 4 + 8)
+        ext_val = {{5{i_buffer[7][DATA_WIDTH-1]}}, i_buffer[7]};
+        s1_low_i_i_prod[7] = -(ext_val + {ext_val[PROD_WIDTH-2:0], 1'b0} + 
+                              {ext_val[PROD_WIDTH-3:0], 2'b0} + {ext_val[PROD_WIDTH-4:0], 3'b0});
+        
+        // Index 6: *-14 = -(2 + 4 + 8)
+        ext_val = {{5{i_buffer[6][DATA_WIDTH-1]}}, i_buffer[6]};
+        s1_low_i_i_prod[6] = -({ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-3:0], 2'b0} + 
+                              {ext_val[PROD_WIDTH-4:0], 3'b0});
+        
+        // Index 5: *-11 = -(1 + 2 + 8)
+        ext_val = {{5{i_buffer[5][DATA_WIDTH-1]}}, i_buffer[5]};
+        s1_low_i_i_prod[5] = -(ext_val + {ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-4:0], 3'b0});
+        
+        // Index 4: *-6 = -(2 + 4)
+        ext_val = {{5{i_buffer[4][DATA_WIDTH-1]}}, i_buffer[4]};
+        s1_low_i_i_prod[4] = -({ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-3:0], 2'b0});
+        
+        // Index 3: *0
+        s1_low_i_i_prod[3] = 9'sd0;
+        
+        // Index 2: *6 = 2 + 4
+        ext_val = {{5{i_buffer[2][DATA_WIDTH-1]}}, i_buffer[2]};
+        s1_low_i_i_prod[2] = {ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-3:0], 2'b0};
+        
+        // Index 1: *11 = 1 + 2 + 8
+        ext_val = {{5{i_buffer[1][DATA_WIDTH-1]}}, i_buffer[1]};
+        s1_low_i_i_prod[1] = ext_val + {ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-4:0], 3'b0};
+        
+        // Index 0: *14 = 2 + 4 + 8
+        ext_val = {{5{i_buffer[0][DATA_WIDTH-1]}}, i_buffer[0]};
+        s1_low_i_i_prod[0] = {ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-3:0], 2'b0} + 
+                             {ext_val[PROD_WIDTH-4:0], 3'b0};
     end
 
     // ========================================
     // BLOCK 2: LOW TEMPLATE Q × I (16 products)
     // ========================================
     always_comb begin
-        /*verilator lint_off WIDTH*/
-        // Template: 15, 14, 11, 6, 0, -6, -11, -14, -15, -14, -11, -6, 0, 6, 11, 14
-        s1_low_q_i_prod[15] = (q_buffer[15] << 0) + (q_buffer[15] << 1) + (q_buffer[15] << 2) + (q_buffer[15] << 3); // *15
-        s1_low_q_i_prod[14] = (q_buffer[14] << 1) + (q_buffer[14] << 2) + (q_buffer[14] << 3); // *14
-        s1_low_q_i_prod[13] = (q_buffer[13] << 0) + (q_buffer[13] << 1) + (q_buffer[13] << 3); // *11
-        s1_low_q_i_prod[12] = (q_buffer[12] << 1) + (q_buffer[12] << 2); // *6
-        s1_low_q_i_prod[11] = 0; // *0
-        s1_low_q_i_prod[10] = -((q_buffer[10] << 1) + (q_buffer[10] << 2)); // *-6
-        s1_low_q_i_prod[9] = -((q_buffer[9] << 0) + (q_buffer[9] << 1) + (q_buffer[9] << 3)); // *-11
-        s1_low_q_i_prod[8] = -((q_buffer[8] << 1) + (q_buffer[8] << 2) + (q_buffer[8] << 3)); // *-14
-        s1_low_q_i_prod[7] = -((q_buffer[7] << 0) + (q_buffer[7] << 1) + (q_buffer[7] << 2) + (q_buffer[7] << 3)); // *-15
-        s1_low_q_i_prod[6] = -((q_buffer[6] << 1) + (q_buffer[6] << 2) + (q_buffer[6] << 3)); // *-14
-        s1_low_q_i_prod[5] = -((q_buffer[5] << 0) + (q_buffer[5] << 1) + (q_buffer[5] << 3)); // *-11
-        s1_low_q_i_prod[4] = -((q_buffer[4] << 1) + (q_buffer[4] << 2)); // *-6
-        s1_low_q_i_prod[3] = 0; // *0
-        s1_low_q_i_prod[2] = (q_buffer[2] << 1) + (q_buffer[2] << 2); // *6
-        s1_low_q_i_prod[1] = (q_buffer[1] << 0) + (q_buffer[1] << 1) + (q_buffer[1] << 3); // *11
-        s1_low_q_i_prod[0] = (q_buffer[0] << 1) + (q_buffer[0] << 2) + (q_buffer[0] << 3); // *14
-        /*verilator lint_on WIDTH*/
+        logic signed [PROD_WIDTH-1:0] ext_val;
+        
+        // Index 15: *15 = 1 + 2 + 4 + 8
+        ext_val = {{5{q_buffer[15][DATA_WIDTH-1]}}, q_buffer[15]};
+        s1_low_q_i_prod[15] = ext_val + {ext_val[PROD_WIDTH-2:0], 1'b0} + 
+                              {ext_val[PROD_WIDTH-3:0], 2'b0} + {ext_val[PROD_WIDTH-4:0], 3'b0};
+        
+        // Index 14: *14 = 2 + 4 + 8
+        ext_val = {{5{q_buffer[14][DATA_WIDTH-1]}}, q_buffer[14]};
+        s1_low_q_i_prod[14] = {ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-3:0], 2'b0} + 
+                              {ext_val[PROD_WIDTH-4:0], 3'b0};
+        
+        // Index 13: *11 = 1 + 2 + 8
+        ext_val = {{5{q_buffer[13][DATA_WIDTH-1]}}, q_buffer[13]};
+        s1_low_q_i_prod[13] = ext_val + {ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-4:0], 3'b0};
+        
+        // Index 12: *6 = 2 + 4
+        ext_val = {{5{q_buffer[12][DATA_WIDTH-1]}}, q_buffer[12]};
+        s1_low_q_i_prod[12] = {ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-3:0], 2'b0};
+        
+        // Index 11: *0
+        s1_low_q_i_prod[11] = 9'sd0;
+        
+        // Index 10: *-6 = -(2 + 4)
+        ext_val = {{5{q_buffer[10][DATA_WIDTH-1]}}, q_buffer[10]};
+        s1_low_q_i_prod[10] = -({ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-3:0], 2'b0});
+        
+        // Index 9: *-11 = -(1 + 2 + 8)
+        ext_val = {{5{q_buffer[9][DATA_WIDTH-1]}}, q_buffer[9]};
+        s1_low_q_i_prod[9] = -(ext_val + {ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-4:0], 3'b0});
+        
+        // Index 8: *-14 = -(2 + 4 + 8)
+        ext_val = {{5{q_buffer[8][DATA_WIDTH-1]}}, q_buffer[8]};
+        s1_low_q_i_prod[8] = -({ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-3:0], 2'b0} + 
+                              {ext_val[PROD_WIDTH-4:0], 3'b0});
+        
+        // Index 7: *-15 = -(1 + 2 + 4 + 8)
+        ext_val = {{5{q_buffer[7][DATA_WIDTH-1]}}, q_buffer[7]};
+        s1_low_q_i_prod[7] = -(ext_val + {ext_val[PROD_WIDTH-2:0], 1'b0} + 
+                              {ext_val[PROD_WIDTH-3:0], 2'b0} + {ext_val[PROD_WIDTH-4:0], 3'b0});
+        
+        // Index 6: *-14 = -(2 + 4 + 8)
+        ext_val = {{5{q_buffer[6][DATA_WIDTH-1]}}, q_buffer[6]};
+        s1_low_q_i_prod[6] = -({ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-3:0], 2'b0} + 
+                              {ext_val[PROD_WIDTH-4:0], 3'b0});
+        
+        // Index 5: *-11 = -(1 + 2 + 8)
+        ext_val = {{5{q_buffer[5][DATA_WIDTH-1]}}, q_buffer[5]};
+        s1_low_q_i_prod[5] = -(ext_val + {ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-4:0], 3'b0});
+        
+        // Index 4: *-6 = -(2 + 4)
+        ext_val = {{5{q_buffer[4][DATA_WIDTH-1]}}, q_buffer[4]};
+        s1_low_q_i_prod[4] = -({ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-3:0], 2'b0});
+        
+        // Index 3: *0
+        s1_low_q_i_prod[3] = 9'sd0;
+        
+        // Index 2: *6 = 2 + 4
+        ext_val = {{5{q_buffer[2][DATA_WIDTH-1]}}, q_buffer[2]};
+        s1_low_q_i_prod[2] = {ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-3:0], 2'b0};
+        
+        // Index 1: *11 = 1 + 2 + 8
+        ext_val = {{5{q_buffer[1][DATA_WIDTH-1]}}, q_buffer[1]};
+        s1_low_q_i_prod[1] = ext_val + {ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-4:0], 3'b0};
+        
+        // Index 0: *14 = 2 + 4 + 8
+        ext_val = {{5{q_buffer[0][DATA_WIDTH-1]}}, q_buffer[0]};
+        s1_low_q_i_prod[0] = {ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-3:0], 2'b0} + 
+                             {ext_val[PROD_WIDTH-4:0], 3'b0};
     end
 
-    // ========================================
-    // BLOCK 3: LOW TEMPLATE I × Q (16 products)
-    // ========================================
+    // BLOCK 3: LOW I×Q (Template: 0, 6, 11, 14, 15, 14, 11, 6, 0, -6, -11, -14, -15, -14, -11, -6)
     always_comb begin
-        /*verilator lint_off WIDTH*/
-        // Template: 0, 6, 11, 14, 15, 14, 11, 6, 0, -6, -11, -14, -15, -14, -11, -6
-        s1_low_i_q_prod[15] = 0; // *0
-        s1_low_i_q_prod[14] = (i_buffer[14] << 1) + (i_buffer[14] << 2); // *6
-        s1_low_i_q_prod[13] = (i_buffer[13] << 0) + (i_buffer[13] << 1) + (i_buffer[13] << 3); // *11
-        s1_low_i_q_prod[12] = (i_buffer[12] << 1) + (i_buffer[12] << 2) + (i_buffer[12] << 3); // *14
-        s1_low_i_q_prod[11] = (i_buffer[11] << 0) + (i_buffer[11] << 1) + (i_buffer[11] << 2) + (i_buffer[11] << 3); // *15
-        s1_low_i_q_prod[10] = (i_buffer[10] << 1) + (i_buffer[10] << 2) + (i_buffer[10] << 3); // *14
-        s1_low_i_q_prod[9] = (i_buffer[9] << 0) + (i_buffer[9] << 1) + (i_buffer[9] << 3); // *11
-        s1_low_i_q_prod[8] = (i_buffer[8] << 1) + (i_buffer[8] << 2); // *6
-        s1_low_i_q_prod[7] = 0; // *0
-        s1_low_i_q_prod[6] = -((i_buffer[6] << 1) + (i_buffer[6] << 2)); // *-6
-        s1_low_i_q_prod[5] = -((i_buffer[5] << 0) + (i_buffer[5] << 1) + (i_buffer[5] << 3)); // *-11
-        s1_low_i_q_prod[4] = -((i_buffer[4] << 1) + (i_buffer[4] << 2) + (i_buffer[4] << 3)); // *-14
-        s1_low_i_q_prod[3] = -((i_buffer[3] << 0) + (i_buffer[3] << 1) + (i_buffer[3] << 2) + (i_buffer[3] << 3)); // *-15
-        s1_low_i_q_prod[2] = -((i_buffer[2] << 1) + (i_buffer[2] << 2) + (i_buffer[2] << 3)); // *-14
-        s1_low_i_q_prod[1] = -((i_buffer[1] << 0) + (i_buffer[1] << 1) + (i_buffer[1] << 3)); // *-11
-        s1_low_i_q_prod[0] = -((i_buffer[0] << 1) + (i_buffer[0] << 2)); // *-6
-        /*verilator lint_on WIDTH*/
+        logic signed [PROD_WIDTH-1:0] ext_val;
+        
+        // Index 15: *0
+        s1_low_i_q_prod[15] = 9'sd0;
+        
+        // Index 14: *6 = 2 + 4
+        ext_val = {{5{i_buffer[14][DATA_WIDTH-1]}}, i_buffer[14]};
+        s1_low_i_q_prod[14] = {ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-3:0], 2'b0};
+        
+        // Index 13: *11 = 1 + 2 + 8
+        ext_val = {{5{i_buffer[13][DATA_WIDTH-1]}}, i_buffer[13]};
+        s1_low_i_q_prod[13] = ext_val + {ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-4:0], 3'b0};
+        
+        // Index 12: *14 = 2 + 4 + 8
+        ext_val = {{5{i_buffer[12][DATA_WIDTH-1]}}, i_buffer[12]};
+        s1_low_i_q_prod[12] = {ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-3:0], 2'b0} + 
+                              {ext_val[PROD_WIDTH-4:0], 3'b0};
+        
+        // Index 11: *15 = 1 + 2 + 4 + 8
+        ext_val = {{5{i_buffer[11][DATA_WIDTH-1]}}, i_buffer[11]};
+        s1_low_i_q_prod[11] = ext_val + {ext_val[PROD_WIDTH-2:0], 1'b0} + 
+                              {ext_val[PROD_WIDTH-3:0], 2'b0} + {ext_val[PROD_WIDTH-4:0], 3'b0};
+        
+        // Index 10: *14 = 2 + 4 + 8
+        ext_val = {{5{i_buffer[10][DATA_WIDTH-1]}}, i_buffer[10]};
+        s1_low_i_q_prod[10] = {ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-3:0], 2'b0} + 
+                              {ext_val[PROD_WIDTH-4:0], 3'b0};
+        
+        // Index 9: *11 = 1 + 2 + 8
+        ext_val = {{5{i_buffer[9][DATA_WIDTH-1]}}, i_buffer[9]};
+        s1_low_i_q_prod[9] = ext_val + {ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-4:0], 3'b0};
+        
+        // Index 8: *6 = 2 + 4
+        ext_val = {{5{i_buffer[8][DATA_WIDTH-1]}}, i_buffer[8]};
+        s1_low_i_q_prod[8] = {ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-3:0], 2'b0};
+        
+        // Index 7: *0
+        s1_low_i_q_prod[7] = 9'sd0;
+        
+        // Index 6: *-6 = -(2 + 4)
+        ext_val = {{5{i_buffer[6][DATA_WIDTH-1]}}, i_buffer[6]};
+        s1_low_i_q_prod[6] = -({ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-3:0], 2'b0});
+        
+        // Index 5: *-11 = -(1 + 2 + 8)
+        ext_val = {{5{i_buffer[5][DATA_WIDTH-1]}}, i_buffer[5]};
+        s1_low_i_q_prod[5] = -(ext_val + {ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-4:0], 3'b0});
+        
+        // Index 4: *-14 = -(2 + 4 + 8)
+        ext_val = {{5{i_buffer[4][DATA_WIDTH-1]}}, i_buffer[4]};
+        s1_low_i_q_prod[4] = -({ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-3:0], 2'b0} + 
+                              {ext_val[PROD_WIDTH-4:0], 3'b0});
+        
+        // Index 3: *-15 = -(1 + 2 + 4 + 8)
+        ext_val = {{5{i_buffer[3][DATA_WIDTH-1]}}, i_buffer[3]};
+        s1_low_i_q_prod[3] = -(ext_val + {ext_val[PROD_WIDTH-2:0], 1'b0} + 
+                              {ext_val[PROD_WIDTH-3:0], 2'b0} + {ext_val[PROD_WIDTH-4:0], 3'b0});
+        
+        // Index 2: *-14 = -(2 + 4 + 8)
+        ext_val = {{5{i_buffer[2][DATA_WIDTH-1]}}, i_buffer[2]};
+        s1_low_i_q_prod[2] = -({ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-3:0], 2'b0} + 
+                              {ext_val[PROD_WIDTH-4:0], 3'b0});
+        
+        // Index 1: *-11 = -(1 + 2 + 8)
+        ext_val = {{5{i_buffer[1][DATA_WIDTH-1]}}, i_buffer[1]};
+        s1_low_i_q_prod[1] = -(ext_val + {ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-4:0], 3'b0});
+        
+        // Index 0: *-6 = -(2 + 4)
+        ext_val = {{5{i_buffer[0][DATA_WIDTH-1]}}, i_buffer[0]};
+        s1_low_i_q_prod[0] = -({ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-3:0], 2'b0});
     end
 
-    // ========================================
-    // BLOCK 4: LOW TEMPLATE Q × Q (16 products)
-    // ========================================
+    // BLOCK 4: LOW Q×Q (Template: 0, 6, 11, 14, 15, 14, 11, 6, 0, -6, -11, -14, -15, -14, -11, -6)
     always_comb begin
-        /*verilator lint_off WIDTH*/
-        // Template: 0, 6, 11, 14, 15, 14, 11, 6, 0, -6, -11, -14, -15, -14, -11, -6
-        s1_low_q_q_prod[15] = 0; // *0
-        s1_low_q_q_prod[14] = (q_buffer[14] << 1) + (q_buffer[14] << 2); // *6
-        s1_low_q_q_prod[13] = (q_buffer[13] << 0) + (q_buffer[13] << 1) + (q_buffer[13] << 3); // *11
-        s1_low_q_q_prod[12] = (q_buffer[12] << 1) + (q_buffer[12] << 2) + (q_buffer[12] << 3); // *14
-        s1_low_q_q_prod[11] = (q_buffer[11] << 0) + (q_buffer[11] << 1) + (q_buffer[11] << 2) + (q_buffer[11] << 3); // *15
-        s1_low_q_q_prod[10] = (q_buffer[10] << 1) + (q_buffer[10] << 2) + (q_buffer[10] << 3); // *14
-        s1_low_q_q_prod[9] = (q_buffer[9] << 0) + (q_buffer[9] << 1) + (q_buffer[9] << 3); // *11
-        s1_low_q_q_prod[8] = (q_buffer[8] << 1) + (q_buffer[8] << 2); // *6
-        s1_low_q_q_prod[7] = 0; // *0
-        s1_low_q_q_prod[6] = -((q_buffer[6] << 1) + (q_buffer[6] << 2)); // *-6
-        s1_low_q_q_prod[5] = -((q_buffer[5] << 0) + (q_buffer[5] << 1) + (q_buffer[5] << 3)); // *-11
-        s1_low_q_q_prod[4] = -((q_buffer[4] << 1) + (q_buffer[4] << 2) + (q_buffer[4] << 3)); // *-14
-        s1_low_q_q_prod[3] = -((q_buffer[3] << 0) + (q_buffer[3] << 1) + (q_buffer[3] << 2) + (q_buffer[3] << 3)); // *-15
-        s1_low_q_q_prod[2] = -((q_buffer[2] << 1) + (q_buffer[2] << 2) + (q_buffer[2] << 3)); // *-14
-        s1_low_q_q_prod[1] = -((q_buffer[1] << 0) + (q_buffer[1] << 1) + (q_buffer[1] << 3)); // *-11
-        s1_low_q_q_prod[0] = -((q_buffer[0] << 1) + (q_buffer[0] << 2)); // *-6
-        /*verilator lint_on WIDTH*/
+        logic signed [PROD_WIDTH-1:0] ext_val;
+        
+        // Index 15: *0
+        s1_low_q_q_prod[15] = 9'sd0;
+        
+        // Index 14: *6 = 2 + 4
+        ext_val = {{5{q_buffer[14][DATA_WIDTH-1]}}, q_buffer[14]};
+        s1_low_q_q_prod[14] = {ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-3:0], 2'b0};
+        
+        // Index 13: *11 = 1 + 2 + 8
+        ext_val = {{5{q_buffer[13][DATA_WIDTH-1]}}, q_buffer[13]};
+        s1_low_q_q_prod[13] = ext_val + {ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-4:0], 3'b0};
+        
+        // Index 12: *14 = 2 + 4 + 8
+        ext_val = {{5{q_buffer[12][DATA_WIDTH-1]}}, q_buffer[12]};
+        s1_low_q_q_prod[12] = {ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-3:0], 2'b0} + 
+                              {ext_val[PROD_WIDTH-4:0], 3'b0};
+        
+        // Index 11: *15 = 1 + 2 + 4 + 8
+        ext_val = {{5{q_buffer[11][DATA_WIDTH-1]}}, q_buffer[11]};
+        s1_low_q_q_prod[11] = ext_val + {ext_val[PROD_WIDTH-2:0], 1'b0} + 
+                              {ext_val[PROD_WIDTH-3:0], 2'b0} + {ext_val[PROD_WIDTH-4:0], 3'b0};
+        
+        // Index 10: *14 = 2 + 4 + 8
+        ext_val = {{5{q_buffer[10][DATA_WIDTH-1]}}, q_buffer[10]};
+        s1_low_q_q_prod[10] = {ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-3:0], 2'b0} + 
+                              {ext_val[PROD_WIDTH-4:0], 3'b0};
+        
+        // Index 9: *11 = 1 + 2 + 8
+        ext_val = {{5{q_buffer[9][DATA_WIDTH-1]}}, q_buffer[9]};
+        s1_low_q_q_prod[9] = ext_val + {ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-4:0], 3'b0};
+        
+        // Index 8: *6 = 2 + 4
+        ext_val = {{5{q_buffer[8][DATA_WIDTH-1]}}, q_buffer[8]};
+        s1_low_q_q_prod[8] = {ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-3:0], 2'b0};
+        
+        // Index 7: *0
+        s1_low_q_q_prod[7] = 9'sd0;
+        
+        // Index 6: *-6 = -(2 + 4)
+        ext_val = {{5{q_buffer[6][DATA_WIDTH-1]}}, q_buffer[6]};
+        s1_low_q_q_prod[6] = -({ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-3:0], 2'b0});
+        
+        // Index 5: *-11 = -(1 + 2 + 8)
+        ext_val = {{5{q_buffer[5][DATA_WIDTH-1]}}, q_buffer[5]};
+        s1_low_q_q_prod[5] = -(ext_val + {ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-4:0], 3'b0});
+        
+        // Index 4: *-14 = -(2 + 4 + 8)
+        ext_val = {{5{q_buffer[4][DATA_WIDTH-1]}}, q_buffer[4]};
+        s1_low_q_q_prod[4] = -({ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-3:0], 2'b0} + 
+                              {ext_val[PROD_WIDTH-4:0], 3'b0});
+        
+        // Index 3: *-15 = -(1 + 2 + 4 + 8)
+        ext_val = {{5{q_buffer[3][DATA_WIDTH-1]}}, q_buffer[3]};
+        s1_low_q_q_prod[3] = -(ext_val + {ext_val[PROD_WIDTH-2:0], 1'b0} + 
+                              {ext_val[PROD_WIDTH-3:0], 2'b0} + {ext_val[PROD_WIDTH-4:0], 3'b0});
+        
+        // Index 2: *-14 = -(2 + 4 + 8)
+        ext_val = {{5{q_buffer[2][DATA_WIDTH-1]}}, q_buffer[2]};
+        s1_low_q_q_prod[2] = -({ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-3:0], 2'b0} + 
+                              {ext_val[PROD_WIDTH-4:0], 3'b0});
+        
+        // Index 1: *-11 = -(1 + 2 + 8)
+        ext_val = {{5{q_buffer[1][DATA_WIDTH-1]}}, q_buffer[1]};
+        s1_low_q_q_prod[1] = -(ext_val + {ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-4:0], 3'b0});
+        
+        // Index 0: *-6 = -(2 + 4)
+        ext_val = {{5{q_buffer[0][DATA_WIDTH-1]}}, q_buffer[0]};
+        s1_low_q_q_prod[0] = -({ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-3:0], 2'b0});
     end
 
-    // ========================================
-    // BLOCK 5: HIGH TEMPLATE I × I (16 products)
-    // ========================================
+    // BLOCK 5: HIGH I×I (Template: 15, 12, 6, -3, -11, -15, -14, -8, 0, 8, 14, 15, 11, 3, -6, -12)
     always_comb begin
-        /*verilator lint_off WIDTH*/
-        // Template: 15, 12, 6, -3, -11, -15, -14, -8, 0, 8, 14, 15, 11, 3, -6, -12
-        s1_high_i_i_prod[15] = (i_buffer[15] << 0) + (i_buffer[15] << 1) + (i_buffer[15] << 2) + (i_buffer[15] << 3); // *15
-        s1_high_i_i_prod[14] = (i_buffer[14] << 2) + (i_buffer[14] << 3); // *12
-        s1_high_i_i_prod[13] = (i_buffer[13] << 1) + (i_buffer[13] << 2); // *6
-        s1_high_i_i_prod[12] = -((i_buffer[12] << 0) + (i_buffer[12] << 1)); // *-3
-        s1_high_i_i_prod[11] = -((i_buffer[11] << 0) + (i_buffer[11] << 1) + (i_buffer[11] << 3)); // *-11
-        s1_high_i_i_prod[10] = -((i_buffer[10] << 0) + (i_buffer[10] << 1) + (i_buffer[10] << 2) + (i_buffer[10] << 3)); // *-15
-        s1_high_i_i_prod[9] = -((i_buffer[9] << 1) + (i_buffer[9] << 2) + (i_buffer[9] << 3)); // *-14
-        s1_high_i_i_prod[8] = -(i_buffer[8] << 3); // *-8
-        s1_high_i_i_prod[7] = 0; // *0
-        s1_high_i_i_prod[6] = (i_buffer[6] << 3); // *8
-        s1_high_i_i_prod[5] = (i_buffer[5] << 1) + (i_buffer[5] << 2) + (i_buffer[5] << 3); // *14
-        s1_high_i_i_prod[4] = (i_buffer[4] << 0) + (i_buffer[4] << 1) + (i_buffer[4] << 2) + (i_buffer[4] << 3); // *15
-        s1_high_i_i_prod[3] = (i_buffer[3] << 0) + (i_buffer[3] << 1) + (i_buffer[3] << 3); // *11
-        s1_high_i_i_prod[2] = (i_buffer[2] << 0) + (i_buffer[2] << 1); // *3
-        s1_high_i_i_prod[1] = -((i_buffer[1] << 1) + (i_buffer[1] << 2)); // *-6
-        s1_high_i_i_prod[0] = -((i_buffer[0] << 2) + (i_buffer[0] << 3)); // *-12
-        /*verilator lint_on WIDTH*/
+        logic signed [PROD_WIDTH-1:0] ext_val;
+        
+        // Index 15: *15 = 1 + 2 + 4 + 8
+        ext_val = {{5{i_buffer[15][DATA_WIDTH-1]}}, i_buffer[15]};
+        s1_high_i_i_prod[15] = ext_val + {ext_val[PROD_WIDTH-2:0], 1'b0} + 
+                               {ext_val[PROD_WIDTH-3:0], 2'b0} + {ext_val[PROD_WIDTH-4:0], 3'b0};
+        
+        // Index 14: *12 = 4 + 8
+        ext_val = {{5{i_buffer[14][DATA_WIDTH-1]}}, i_buffer[14]};
+        s1_high_i_i_prod[14] = {ext_val[PROD_WIDTH-3:0], 2'b0} + {ext_val[PROD_WIDTH-4:0], 3'b0};
+        
+        // Index 13: *6 = 2 + 4
+        ext_val = {{5{i_buffer[13][DATA_WIDTH-1]}}, i_buffer[13]};
+        s1_high_i_i_prod[13] = {ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-3:0], 2'b0};
+        
+        // Index 12: *-3 = -(1 + 2)
+        ext_val = {{5{i_buffer[12][DATA_WIDTH-1]}}, i_buffer[12]};
+        s1_high_i_i_prod[12] = -(ext_val + {ext_val[PROD_WIDTH-2:0], 1'b0});
+        
+        // Index 11: *-11 = -(1 + 2 + 8)
+        ext_val = {{5{i_buffer[11][DATA_WIDTH-1]}}, i_buffer[11]};
+        s1_high_i_i_prod[11] = -(ext_val + {ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-4:0], 3'b0});
+        
+        // Index 10: *-15 = -(1 + 2 + 4 + 8)
+        ext_val = {{5{i_buffer[10][DATA_WIDTH-1]}}, i_buffer[10]};
+        s1_high_i_i_prod[10] = -(ext_val + {ext_val[PROD_WIDTH-2:0], 1'b0} + 
+                                {ext_val[PROD_WIDTH-3:0], 2'b0} + {ext_val[PROD_WIDTH-4:0], 3'b0});
+        
+        // Index 9: *-14 = -(2 + 4 + 8)
+        ext_val = {{5{i_buffer[9][DATA_WIDTH-1]}}, i_buffer[9]};
+        s1_high_i_i_prod[9] = -({ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-3:0], 2'b0} + 
+                               {ext_val[PROD_WIDTH-4:0], 3'b0});
+        
+        // Index 8: *-8 = -8
+        ext_val = {{5{i_buffer[8][DATA_WIDTH-1]}}, i_buffer[8]};
+        s1_high_i_i_prod[8] = -{ext_val[PROD_WIDTH-4:0], 3'b0};
+        
+        // Index 7: *0
+        s1_high_i_i_prod[7] = 9'sd0;
+        
+        // Index 6: *8 = 8
+        ext_val = {{5{i_buffer[6][DATA_WIDTH-1]}}, i_buffer[6]};
+        s1_high_i_i_prod[6] = {ext_val[PROD_WIDTH-4:0], 3'b0};
+        
+        // Index 5: *14 = 2 + 4 + 8
+        ext_val = {{5{i_buffer[5][DATA_WIDTH-1]}}, i_buffer[5]};
+        s1_high_i_i_prod[5] = {ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-3:0], 2'b0} + 
+                              {ext_val[PROD_WIDTH-4:0], 3'b0};
+        
+        // Index 4: *15 = 1 + 2 + 4 + 8
+        ext_val = {{5{i_buffer[4][DATA_WIDTH-1]}}, i_buffer[4]};
+        s1_high_i_i_prod[4] = ext_val + {ext_val[PROD_WIDTH-2:0], 1'b0} + 
+                              {ext_val[PROD_WIDTH-3:0], 2'b0} + {ext_val[PROD_WIDTH-4:0], 3'b0};
+        
+        // Index 3: *11 = 1 + 2 + 8
+        ext_val = {{5{i_buffer[3][DATA_WIDTH-1]}}, i_buffer[3]};
+        s1_high_i_i_prod[3] = ext_val + {ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-4:0], 3'b0};
+        
+        // Index 2: *3 = 1 + 2
+        ext_val = {{5{i_buffer[2][DATA_WIDTH-1]}}, i_buffer[2]};
+        s1_high_i_i_prod[2] = ext_val + {ext_val[PROD_WIDTH-2:0], 1'b0};
+        
+        // Index 1: *-6 = -(2 + 4)
+        ext_val = {{5{i_buffer[1][DATA_WIDTH-1]}}, i_buffer[1]};
+        s1_high_i_i_prod[1] = -({ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-3:0], 2'b0});
+        
+        // Index 0: *-12 = -(4 + 8)
+        ext_val = {{5{i_buffer[0][DATA_WIDTH-1]}}, i_buffer[0]};
+        s1_high_i_i_prod[0] = -({ext_val[PROD_WIDTH-3:0], 2'b0} + {ext_val[PROD_WIDTH-4:0], 3'b0});
     end
 
-    // ========================================
-    // BLOCK 6: HIGH TEMPLATE Q × I (16 products)
-    // ========================================
+    // BLOCK 6: HIGH Q×I (Template: 15, 12, 6, -3, -11, -15, -14, -8, 0, 8, 14, 15, 11, 3, -6, -12)
     always_comb begin
-        /*verilator lint_off WIDTH*/
-        // Template: 15, 12, 6, -3, -11, -15, -14, -8, 0, 8, 14, 15, 11, 3, -6, -12
-        s1_high_q_i_prod[15] = (q_buffer[15] << 0) + (q_buffer[15] << 1) + (q_buffer[15] << 2) + (q_buffer[15] << 3); // *15
-        s1_high_q_i_prod[14] = (q_buffer[14] << 2) + (q_buffer[14] << 3); // *12
-        s1_high_q_i_prod[13] = (q_buffer[13] << 1) + (q_buffer[13] << 2); // *6
-        s1_high_q_i_prod[12] = -((q_buffer[12] << 0) + (q_buffer[12] << 1)); // *-3
-        s1_high_q_i_prod[11] = -((q_buffer[11] << 0) + (q_buffer[11] << 1) + (q_buffer[11] << 3)); // *-11
-        s1_high_q_i_prod[10] = -((q_buffer[10] << 0) + (q_buffer[10] << 1) + (q_buffer[10] << 2) + (q_buffer[10] << 3)); // *-15
-        s1_high_q_i_prod[9] = -((q_buffer[9] << 1) + (q_buffer[9] << 2) + (q_buffer[9] << 3)); // *-14
-        s1_high_q_i_prod[8] = -(q_buffer[8] << 3); // *-8
-        s1_high_q_i_prod[7] = 0; // *0
-        s1_high_q_i_prod[6] = (q_buffer[6] << 3); // *8
-        s1_high_q_i_prod[5] = (q_buffer[5] << 1) + (q_buffer[5] << 2) + (q_buffer[5] << 3); // *14
-        s1_high_q_i_prod[4] = (q_buffer[4] << 0) + (q_buffer[4] << 1) + (q_buffer[4] << 2) + (q_buffer[4] << 3); // *15
-        s1_high_q_i_prod[3] = (q_buffer[3] << 0) + (q_buffer[3] << 1) + (q_buffer[3] << 3); // *11
-        s1_high_q_i_prod[2] = (q_buffer[2] << 0) + (q_buffer[2] << 1); // *3
-        s1_high_q_i_prod[1] = -((q_buffer[1] << 1) + (q_buffer[1] << 2)); // *-6
-        s1_high_q_i_prod[0] = -((q_buffer[0] << 2) + (q_buffer[0] << 3)); // *-12
-        /*verilator lint_on WIDTH*/
+        logic signed [PROD_WIDTH-1:0] ext_val;
+        
+        // Index 15: *15 = 1 + 2 + 4 + 8
+        ext_val = {{5{q_buffer[15][DATA_WIDTH-1]}}, q_buffer[15]};
+        s1_high_q_i_prod[15] = ext_val + {ext_val[PROD_WIDTH-2:0], 1'b0} + 
+                               {ext_val[PROD_WIDTH-3:0], 2'b0} + {ext_val[PROD_WIDTH-4:0], 3'b0};
+        
+        // Index 14: *12 = 4 + 8
+        ext_val = {{5{q_buffer[14][DATA_WIDTH-1]}}, q_buffer[14]};
+        s1_high_q_i_prod[14] = {ext_val[PROD_WIDTH-3:0], 2'b0} + {ext_val[PROD_WIDTH-4:0], 3'b0};
+        
+        // Index 13: *6 = 2 + 4
+        ext_val = {{5{q_buffer[13][DATA_WIDTH-1]}}, q_buffer[13]};
+        s1_high_q_i_prod[13] = {ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-3:0], 2'b0};
+        
+        // Index 12: *-3 = -(1 + 2)
+        ext_val = {{5{q_buffer[12][DATA_WIDTH-1]}}, q_buffer[12]};
+        s1_high_q_i_prod[12] = -(ext_val + {ext_val[PROD_WIDTH-2:0], 1'b0});
+        
+        // Index 11: *-11 = -(1 + 2 + 8)
+        ext_val = {{5{q_buffer[11][DATA_WIDTH-1]}}, q_buffer[11]};
+        s1_high_q_i_prod[11] = -(ext_val + {ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-4:0], 3'b0});
+        
+        // Index 10: *-15 = -(1 + 2 + 4 + 8)
+        ext_val = {{5{q_buffer[10][DATA_WIDTH-1]}}, q_buffer[10]};
+        s1_high_q_i_prod[10] = -(ext_val + {ext_val[PROD_WIDTH-2:0], 1'b0} + 
+                                {ext_val[PROD_WIDTH-3:0], 2'b0} + {ext_val[PROD_WIDTH-4:0], 3'b0});
+        
+        // Index 9: *-14 = -(2 + 4 + 8)
+        ext_val = {{5{q_buffer[9][DATA_WIDTH-1]}}, q_buffer[9]};
+        s1_high_q_i_prod[9] = -({ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-3:0], 2'b0} + 
+                               {ext_val[PROD_WIDTH-4:0], 3'b0});
+        
+        // Index 8: *-8 = -8
+        ext_val = {{5{q_buffer[8][DATA_WIDTH-1]}}, q_buffer[8]};
+        s1_high_q_i_prod[8] = -{ext_val[PROD_WIDTH-4:0], 3'b0};
+        
+        // Index 7: *0
+        s1_high_q_i_prod[7] = 9'sd0;
+        
+        // Index 6: *8 = 8
+        ext_val = {{5{q_buffer[6][DATA_WIDTH-1]}}, q_buffer[6]};
+        s1_high_q_i_prod[6] = {ext_val[PROD_WIDTH-4:0], 3'b0};
+        
+        // Index 5: *14 = 2 + 4 + 8
+        ext_val = {{5{q_buffer[5][DATA_WIDTH-1]}}, q_buffer[5]};
+        s1_high_q_i_prod[5] = {ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-3:0], 2'b0} + 
+                              {ext_val[PROD_WIDTH-4:0], 3'b0};
+        
+        // Index 4: *15 = 1 + 2 + 4 + 8
+        ext_val = {{5{q_buffer[4][DATA_WIDTH-1]}}, q_buffer[4]};
+        s1_high_q_i_prod[4] = ext_val + {ext_val[PROD_WIDTH-2:0], 1'b0} + 
+                              {ext_val[PROD_WIDTH-3:0], 2'b0} + {ext_val[PROD_WIDTH-4:0], 3'b0};
+        
+        // Index 3: *11 = 1 + 2 + 8
+        ext_val = {{5{q_buffer[3][DATA_WIDTH-1]}}, q_buffer[3]};
+        s1_high_q_i_prod[3] = ext_val + {ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-4:0], 3'b0};
+        
+        // Index 2: *3 = 1 + 2
+        ext_val = {{5{q_buffer[2][DATA_WIDTH-1]}}, q_buffer[2]};
+        s1_high_q_i_prod[2] = ext_val + {ext_val[PROD_WIDTH-2:0], 1'b0};
+        
+        // Index 1: *-6 = -(2 + 4)
+        ext_val = {{5{q_buffer[1][DATA_WIDTH-1]}}, q_buffer[1]};
+        s1_high_q_i_prod[1] = -({ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-3:0], 2'b0});
+        
+        // Index 0: *-12 = -(4 + 8)
+        ext_val = {{5{q_buffer[0][DATA_WIDTH-1]}}, q_buffer[0]};
+        s1_high_q_i_prod[0] = -({ext_val[PROD_WIDTH-3:0], 2'b0} + {ext_val[PROD_WIDTH-4:0], 3'b0});
     end
 
-    // ========================================
-    // BLOCK 7: HIGH TEMPLATE I × Q (16 products)
-    // ========================================
+    // BLOCK 7: HIGH I×Q (Template: 0, 8, 14, 15, 11, 3, -6, -12, -15, -12, -6, 3, 11, 15, 14, 8)
     always_comb begin
-        /*verilator lint_off WIDTH*/
-        // Template: 0, 8, 14, 15, 11, 3, -6, -12, -15, -12, -6, 3, 11, 15, 14, 8
-        s1_high_i_q_prod[15] = 0; // *0
-        s1_high_i_q_prod[14] = (i_buffer[14] << 3); // *8
-        s1_high_i_q_prod[13] = (i_buffer[13] << 1) + (i_buffer[13] << 2) + (i_buffer[13] << 3); // *14
-        s1_high_i_q_prod[12] = (i_buffer[12] << 0) + (i_buffer[12] << 1) + (i_buffer[12] << 2) + (i_buffer[12] << 3); // *15
-        s1_high_i_q_prod[11] = (i_buffer[11] << 0) + (i_buffer[11] << 1) + (i_buffer[11] << 3); // *11
-        s1_high_i_q_prod[10] = (i_buffer[10] << 0) + (i_buffer[10] << 1); // *3
-        s1_high_i_q_prod[9] = -((i_buffer[9] << 1) + (i_buffer[9] << 2)); // *-6
-        s1_high_i_q_prod[8] = -((i_buffer[8] << 2) + (i_buffer[8] << 3)); // *-12
-        s1_high_i_q_prod[7] = -((i_buffer[7] << 0) + (i_buffer[7] << 1) + (i_buffer[7] << 2) + (i_buffer[7] << 3)); // *-15
-        s1_high_i_q_prod[6] = -((i_buffer[6] << 2) + (i_buffer[6] << 3)); // *-12
-        s1_high_i_q_prod[5] = -((i_buffer[5] << 1) + (i_buffer[5] << 2)); // *-6
-        s1_high_i_q_prod[4] = (i_buffer[4] << 0) + (i_buffer[4] << 1); // *3
-        s1_high_i_q_prod[3] = (i_buffer[3] << 0) + (i_buffer[3] << 1) + (i_buffer[3] << 3); // *11
-        s1_high_i_q_prod[2] = (i_buffer[2] << 0) + (i_buffer[2] << 1) + (i_buffer[2] << 2) + (i_buffer[2] << 3); // *15
-        s1_high_i_q_prod[1] = (i_buffer[1] << 1) + (i_buffer[1] << 2) + (i_buffer[1] << 3); // *14
-        s1_high_i_q_prod[0] = (i_buffer[0] << 3); // *8
-        /*verilator lint_on WIDTH*/
+        logic signed [PROD_WIDTH-1:0] ext_val;
+        
+        // Index 15: *0
+        s1_high_i_q_prod[15] = 9'sd0;
+        
+        // Index 14: *8 = 8
+        ext_val = {{5{i_buffer[14][DATA_WIDTH-1]}}, i_buffer[14]};
+        s1_high_i_q_prod[14] = {ext_val[PROD_WIDTH-4:0], 3'b0};
+        
+        // Index 13: *14 = 2 + 4 + 8
+        ext_val = {{5{i_buffer[13][DATA_WIDTH-1]}}, i_buffer[13]};
+        s1_high_i_q_prod[13] = {ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-3:0], 2'b0} + 
+                               {ext_val[PROD_WIDTH-4:0], 3'b0};
+        
+        // Index 12: *15 = 1 + 2 + 4 + 8
+        ext_val = {{5{i_buffer[12][DATA_WIDTH-1]}}, i_buffer[12]};
+        s1_high_i_q_prod[12] = ext_val + {ext_val[PROD_WIDTH-2:0], 1'b0} + 
+                               {ext_val[PROD_WIDTH-3:0], 2'b0} + {ext_val[PROD_WIDTH-4:0], 3'b0};
+        
+        // Index 11: *11 = 1 + 2 + 8
+        ext_val = {{5{i_buffer[11][DATA_WIDTH-1]}}, i_buffer[11]};
+        s1_high_i_q_prod[11] = ext_val + {ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-4:0], 3'b0};
+        
+        // Index 10: *3 = 1 + 2
+        ext_val = {{5{i_buffer[10][DATA_WIDTH-1]}}, i_buffer[10]};
+        s1_high_i_q_prod[10] = ext_val + {ext_val[PROD_WIDTH-2:0], 1'b0};
+        
+        // Index 9: *-6 = -(2 + 4)
+        ext_val = {{5{i_buffer[9][DATA_WIDTH-1]}}, i_buffer[9]};
+        s1_high_i_q_prod[9] = -({ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-3:0], 2'b0});
+        
+        // Index 8: *-12 = -(4 + 8)
+        ext_val = {{5{i_buffer[8][DATA_WIDTH-1]}}, i_buffer[8]};
+        s1_high_i_q_prod[8] = -({ext_val[PROD_WIDTH-3:0], 2'b0} + {ext_val[PROD_WIDTH-4:0], 3'b0});
+        
+        // Index 7: *-15 = -(1 + 2 + 4 + 8)
+        ext_val = {{5{i_buffer[7][DATA_WIDTH-1]}}, i_buffer[7]};
+        s1_high_i_q_prod[7] = -(ext_val + {ext_val[PROD_WIDTH-2:0], 1'b0} + 
+                               {ext_val[PROD_WIDTH-3:0], 2'b0} + {ext_val[PROD_WIDTH-4:0], 3'b0});
+        
+        // Index 6: *-12 = -(4 + 8)
+        ext_val = {{5{i_buffer[6][DATA_WIDTH-1]}}, i_buffer[6]};
+        s1_high_i_q_prod[6] = -({ext_val[PROD_WIDTH-3:0], 2'b0} + {ext_val[PROD_WIDTH-4:0], 3'b0});
+        
+        // Index 5: *-6 = -(2 + 4)
+        ext_val = {{5{i_buffer[5][DATA_WIDTH-1]}}, i_buffer[5]};
+        s1_high_i_q_prod[5] = -({ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-3:0], 2'b0});
+        
+        // Index 4: *3 = 1 + 2
+        ext_val = {{5{i_buffer[4][DATA_WIDTH-1]}}, i_buffer[4]};
+        s1_high_i_q_prod[4] = ext_val + {ext_val[PROD_WIDTH-2:0], 1'b0};
+        
+        // Index 3: *11 = 1 + 2 + 8
+        ext_val = {{5{i_buffer[3][DATA_WIDTH-1]}}, i_buffer[3]};
+        s1_high_i_q_prod[3] = ext_val + {ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-4:0], 3'b0};
+        
+        // Index 2: *15 = 1 + 2 + 4 + 8
+        ext_val = {{5{i_buffer[2][DATA_WIDTH-1]}}, i_buffer[2]};
+        s1_high_i_q_prod[2] = ext_val + {ext_val[PROD_WIDTH-2:0], 1'b0} + 
+                              {ext_val[PROD_WIDTH-3:0], 2'b0} + {ext_val[PROD_WIDTH-4:0], 3'b0};
+        
+        // Index 1: *14 = 2 + 4 + 8
+        ext_val = {{5{i_buffer[1][DATA_WIDTH-1]}}, i_buffer[1]};
+        s1_high_i_q_prod[1] = {ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-3:0], 2'b0} + 
+                              {ext_val[PROD_WIDTH-4:0], 3'b0};
+        
+        // Index 0: *8 = 8
+        ext_val = {{5{i_buffer[0][DATA_WIDTH-1]}}, i_buffer[0]};
+        s1_high_i_q_prod[0] = {ext_val[PROD_WIDTH-4:0], 3'b0};
     end
 
-    // ========================================
-    // BLOCK 8: HIGH TEMPLATE Q × Q (16 products)
-    // ========================================
+    // BLOCK 8: HIGH Q×Q (Template: 0, 8, 14, 15, 11, 3, -6, -12, -15, -12, -6, 3, 11, 15, 14, 8)
     always_comb begin
-        /*verilator lint_off WIDTH*/
-        // Template: 0, 8, 14, 15, 11, 3, -6, -12, -15, -12, -6, 3, 11, 15, 14, 8
-        s1_high_q_q_prod[15] = 0; // *0
-        s1_high_q_q_prod[14] = (q_buffer[14] << 3); // *8
-        s1_high_q_q_prod[13] = (q_buffer[13] << 1) + (q_buffer[13] << 2) + (q_buffer[13] << 3); // *14
-        s1_high_q_q_prod[12] = (q_buffer[12] << 0) + (q_buffer[12] << 1) + (q_buffer[12] << 2) + (q_buffer[12] << 3); // *15
-        s1_high_q_q_prod[11] = (q_buffer[11] << 0) + (q_buffer[11] << 1) + (q_buffer[11] << 3); // *11
-        s1_high_q_q_prod[10] = (q_buffer[10] << 0) + (q_buffer[10] << 1); // *3
-        s1_high_q_q_prod[9] = -((q_buffer[9] << 1) + (q_buffer[9] << 2)); // *-6
-        s1_high_q_q_prod[8] = -((q_buffer[8] << 2) + (q_buffer[8] << 3)); // *-12
-        s1_high_q_q_prod[7] = -((q_buffer[7] << 0) + (q_buffer[7] << 1) + (q_buffer[7] << 2) + (q_buffer[7] << 3)); // *-15
-        s1_high_q_q_prod[6] = -((q_buffer[6] << 2) + (q_buffer[6] << 3)); // *-12
-        s1_high_q_q_prod[5] = -((q_buffer[5] << 1) + (q_buffer[5] << 2)); // *-6
-        s1_high_q_q_prod[4] = (q_buffer[4] << 0) + (q_buffer[4] << 1); // *3
-        s1_high_q_q_prod[3] = (q_buffer[3] << 0) + (q_buffer[3] << 1) + (q_buffer[3] << 3); // *11
-        s1_high_q_q_prod[2] = (q_buffer[2] << 0) + (q_buffer[2] << 1) + (q_buffer[2] << 2) + (q_buffer[2] << 3); // *15
-        s1_high_q_q_prod[1] = (q_buffer[1] << 1) + (q_buffer[1] << 2) + (q_buffer[1] << 3); // *14
-        s1_high_q_q_prod[0] = (q_buffer[0] << 3); // *8
-        /*verilator lint_on WIDTH*/
+        logic signed [PROD_WIDTH-1:0] ext_val;
+        
+        // Index 15: *0
+        s1_high_q_q_prod[15] = 9'sd0;
+        
+        // Index 14: *8 = 8
+        ext_val = {{5{q_buffer[14][DATA_WIDTH-1]}}, q_buffer[14]};
+        s1_high_q_q_prod[14] = {ext_val[PROD_WIDTH-4:0], 3'b0};
+        
+        // Index 13: *14 = 2 + 4 + 8
+        ext_val = {{5{q_buffer[13][DATA_WIDTH-1]}}, q_buffer[13]};
+        s1_high_q_q_prod[13] = {ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-3:0], 2'b0} + 
+                               {ext_val[PROD_WIDTH-4:0], 3'b0};
+        
+        // Index 12: *15 = 1 + 2 + 4 + 8
+        ext_val = {{5{q_buffer[12][DATA_WIDTH-1]}}, q_buffer[12]};
+        s1_high_q_q_prod[12] = ext_val + {ext_val[PROD_WIDTH-2:0], 1'b0} + 
+                               {ext_val[PROD_WIDTH-3:0], 2'b0} + {ext_val[PROD_WIDTH-4:0], 3'b0};
+        
+        // Index 11: *11 = 1 + 2 + 8
+        ext_val = {{5{q_buffer[11][DATA_WIDTH-1]}}, q_buffer[11]};
+        s1_high_q_q_prod[11] = ext_val + {ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-4:0], 3'b0};
+        
+        // Index 10: *3 = 1 + 2
+        ext_val = {{5{q_buffer[10][DATA_WIDTH-1]}}, q_buffer[10]};
+        s1_high_q_q_prod[10] = ext_val + {ext_val[PROD_WIDTH-2:0], 1'b0};
+        
+        // Index 9: *-6 = -(2 + 4)
+        ext_val = {{5{q_buffer[9][DATA_WIDTH-1]}}, q_buffer[9]};
+        s1_high_q_q_prod[9] = -({ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-3:0], 2'b0});
+        
+        // Index 8: *-12 = -(4 + 8)
+        ext_val = {{5{q_buffer[8][DATA_WIDTH-1]}}, q_buffer[8]};
+        s1_high_q_q_prod[8] = -({ext_val[PROD_WIDTH-3:0], 2'b0} + {ext_val[PROD_WIDTH-4:0], 3'b0});
+        
+        // Index 7: *-15 = -(1 + 2 + 4 + 8)
+        ext_val = {{5{q_buffer[7][DATA_WIDTH-1]}}, q_buffer[7]};
+        s1_high_q_q_prod[7] = -(ext_val + {ext_val[PROD_WIDTH-2:0], 1'b0} + 
+                               {ext_val[PROD_WIDTH-3:0], 2'b0} + {ext_val[PROD_WIDTH-4:0], 3'b0});
+        
+        // Index 6: *-12 = -(4 + 8)
+        ext_val = {{5{q_buffer[6][DATA_WIDTH-1]}}, q_buffer[6]};
+        s1_high_q_q_prod[6] = -({ext_val[PROD_WIDTH-3:0], 2'b0} + {ext_val[PROD_WIDTH-4:0], 3'b0});
+        
+        // Index 5: *-6 = -(2 + 4)
+        ext_val = {{5{q_buffer[5][DATA_WIDTH-1]}}, q_buffer[5]};
+        s1_high_q_q_prod[5] = -({ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-3:0], 2'b0});
+        
+        // Index 4: *3 = 1 + 2
+        ext_val = {{5{q_buffer[4][DATA_WIDTH-1]}}, q_buffer[4]};
+        s1_high_q_q_prod[4] = ext_val + {ext_val[PROD_WIDTH-2:0], 1'b0};
+        
+        // Index 3: *11 = 1 + 2 + 8
+        ext_val = {{5{q_buffer[3][DATA_WIDTH-1]}}, q_buffer[3]};
+        s1_high_q_q_prod[3] = ext_val + {ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-4:0], 3'b0};
+        
+        // Index 2: *15 = 1 + 2 + 4 + 8
+        ext_val = {{5{q_buffer[2][DATA_WIDTH-1]}}, q_buffer[2]};
+        s1_high_q_q_prod[2] = ext_val + {ext_val[PROD_WIDTH-2:0], 1'b0} + 
+                              {ext_val[PROD_WIDTH-3:0], 2'b0} + {ext_val[PROD_WIDTH-4:0], 3'b0};
+        
+        // Index 1: *14 = 2 + 4 + 8
+        ext_val = {{5{q_buffer[1][DATA_WIDTH-1]}}, q_buffer[1]};
+        s1_high_q_q_prod[1] = {ext_val[PROD_WIDTH-2:0], 1'b0} + {ext_val[PROD_WIDTH-3:0], 2'b0} + 
+                              {ext_val[PROD_WIDTH-4:0], 3'b0};
+        
+        // Index 0: *8 = 8
+        ext_val = {{5{q_buffer[0][DATA_WIDTH-1]}}, q_buffer[0]};
+        s1_high_q_q_prod[0] = {ext_val[PROD_WIDTH-4:0], 3'b0};
     end
+
 
     // STAGE 2: Partial Sums (16 to 4)
     // Combinational: Sum groups of 4 products

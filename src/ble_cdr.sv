@@ -33,10 +33,33 @@ module ble_cdr #(
     output logic packet_detected
 );
 
-    localparam PIPELINE_STAGES = 1;
+    localparam MF_PIPELINE = 5;
+    localparam CDR_PIPELINE = 9;
+    localparam DELAY_NEEDED = CDR_PIPELINE - MF_PIPELINE;
+
+    // Delay line for demod_bit
+    logic [DELAY_NEEDED-1:0] demod_bit_delay;
+
+    always_ff @(posedge clk or negedge resetn) begin
+        if (~resetn) begin
+            demod_bit_delay <= 0;
+        end else if (en) begin
+            demod_bit_delay <= {demod_bit_delay[DELAY_NEEDED-2:0], demod_bit};
+        end
+    end
+
+    // Use delayed bit
+    logic demod_bit_aligned;
+    assign demod_bit_aligned = demod_bit_delay[DELAY_NEEDED-1];
+
+    always_comb begin
+    demod_symbol = demod_bit_aligned;
+    demod_symbol_clk = symbol_clk;
+    end
 
     // Matched filter stuff
     logic demod_bit;
+
     matched_filter #(
         .SAMPLE_RATE(SAMPLE_RATE),
         .DATA_WIDTH(DATA_WIDTH)
@@ -99,10 +122,6 @@ module ble_cdr #(
 
 // `endif
 
-    always_comb begin
-        demod_symbol = demod_bit;
-        demod_symbol_clk = symbol_clk;
-    end
 
     // Packet sniffer stuff
     logic [31:0] latched_acc_addr;
@@ -128,7 +147,7 @@ module ble_cdr #(
         .resetn(resetn),
         .en(en),
 
-        .symbol_in(demod_bit),
+        .symbol_in(demod_bit_aligned),
 
         .packet_detected(packet_detected_reg),
 

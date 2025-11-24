@@ -42,10 +42,10 @@ pinout:
   uo[1]: "demod_symbol_clk"
   uo[2]: "packet_detected"
   uo[3]: "preamble_detected"
-  uo[4]: "clk"
-  uo[5]: "ena_sync"
-  uo[6]: "rst"
-  uo[7]: ""
+  uo[4]: "ena_sync"
+  uo[5]: "rst"
+  uo[6]: "Q_BPF_echo[0]"
+  uo[7]: "Q_BPF_echo[1]"
 
   # Bidirectional pins
   uio[0]: "channel_sel[0] (input)"
@@ -54,8 +54,8 @@ pinout:
   uio[3]: "I_BPF_echo[1] (output)"
   uio[4]: "I_BPF_echo[2] (output)"
   uio[5]: "I_BPF_echo[3] (output)"
-  uio[6]: ""
-  uio[7]: ""
+  uio[6]: "Q_BPF_echo[2] (output)"
+  uio[7]: "Q_BPF_echo[3] (output)"
 
 # Do not change!
 yaml_version: 6

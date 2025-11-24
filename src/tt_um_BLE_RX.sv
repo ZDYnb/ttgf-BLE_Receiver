@@ -1,8 +1,4 @@
 module tt_um_BLE_RX (
-`ifdef GL_TEST
-    input  logic VPWR,
-    input  logic VGND,
-`endif
     // Tiny Tapeout user interface
     input  logic [7:0] ui_in,    // dedicated inputs
     output logic [7:0] uo_out,   // dedicated outputs
@@ -110,12 +106,12 @@ module tt_um_BLE_RX (
         if (rst) begin
             uo_out_r <= 8'h00;
         end else begin
-            uo_out_r <= {1'b0, rst, ena_sync, clk, preamble_detected, packet_detected, demod_symbol_clk, demod_symbol};
+            uo_out_r <= {Q_BPF_r[3:2], rst, ena_sync, preamble_detected, packet_detected, demod_symbol_clk, demod_symbol};
         end
     end
     assign uo_out = uo_out_r;
 
-    assign uio_out = {2'b00, I_BPF_r[3:0], 2'b00}; // bits [1:0] don't matter since they're inputs
+    assign uio_out = {Q_BPF_r[1:0], I_BPF_r[3:0], 2'b00}; // bits [1:0] don't matter since they're inputs
 
 
     // Avoid unused warnings

@@ -1,5 +1,5 @@
 pytest==8.4.2
-cocotb==2.0.0
+cocotb==2.0.1
 cocotb-test>=0.2.4
 numpy>=1.24.0
 scipy>=1.10.0

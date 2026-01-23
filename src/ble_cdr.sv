@@ -31,7 +31,20 @@ module ble_cdr #(
     output logic preamble_detected_out,
 
     input logic [5:0] channel,
-    output logic packet_detected
+    output logic packet_detected,
+
+    // Packet sniffer debug outputs
+    output logic state_copy,
+    output logic nextState_copy,
+    output logic acc_addr_matched_copy,
+    // output logic packet_finished_copy,
+    // output logic dewhitened_copy,
+    // output logic crc_pass_copy
+
+    // dewhitening LFSR state output for debugging
+    output logic [6:0] dewhiten_lfsfr_copy,
+    output logic reset_dewhiten_crc_debug,
+    output logic rx_buffer_0
 );
 
     localparam MF_PIPELINE = 5;
@@ -130,6 +143,7 @@ module ble_cdr #(
     logic [5:0] latched_channel;
     logic packet_detected_reg;
 
+
     assign latched_acc_addr = 32'h6b7d9171;
     assign latched_channel = 6'd37;
 
@@ -145,7 +159,7 @@ module ble_cdr #(
         .PACKET_LEN_MAX(MAX_PACKET_LEN),
         .PREAMBLE_LEN(PREAMBLE_LEN)
     ) ps (
-        .symbol_clk(symbol_clk),
+        .symbol_clk(demod_symbol_clk),
         .resetn(resetn),
         .en(en),
 
@@ -154,7 +168,16 @@ module ble_cdr #(
         .packet_detected(packet_detected_reg),
 
         .acc_addr(latched_acc_addr),
-        .channel(latched_channel)
+        .channel(latched_channel),
+        .state_copy(state_copy),
+        .nextState_copy(nextState_copy),
+        .acc_addr_matched_copy(acc_addr_matched_copy),
+        // .packet_finished_copy(packet_finished_copy),
+        // .dewhitened_copy(dewhitened_copy),
+        // .crc_pass_copy(crc_pass_copy)
+        .dewhiten_lfsfr_copy(dewhiten_lfsfr_copy),
+        .reset_dewhiten_crc(reset_dewhiten_crc_debug),
+        .rx_buffer_0(rx_buffer_0)
     );
 
 endmodule

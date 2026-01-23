@@ -8,6 +8,7 @@ module tt_um_BLE_RX (
     input  logic       ena,      // design selected (async to clk)
     input  logic       clk,      // system clock
     input  logic       rst_n     // async active-low reset from pad
+
 );
 
     assign uio_oe = 8'b1111_1100;
@@ -79,6 +80,20 @@ module tt_um_BLE_RX (
     logic packet_detected;
     logic preamble_detected;
 
+    // Packet sniffer debug outputs
+    logic state_copy;
+    logic nextState_copy;
+    logic acc_addr_matched_copy;
+    // logic packet_finished_copy;
+    // logic dewhitened_copy;
+    // logic crc_pass_copy;
+
+    // dewhitening LFSR state output for debugging
+    logic [6:0] dewhiten_lfsfr_copy;
+
+    logic reset_dewhiten_crc_debug;
+
+    logic rx_buffer_0;
     ble_cdr #(
         .SAMPLE_RATE(16),
         .DATA_WIDTH (DATA_WIDTH)
@@ -95,7 +110,17 @@ module tt_um_BLE_RX (
         .preamble_detected_out(preamble_detected),
 
         .channel          (channel_6bit),
-        .packet_detected  (packet_detected)
+        .packet_detected  (packet_detected),
+        // // Packet sniffer debug outputs
+        .state_copy(state_copy),
+        .nextState_copy(nextState_copy),
+        .acc_addr_matched_copy(acc_addr_matched_copy),
+        // .packet_finished_copy(packet_finished_copy),
+        // .dewhitened_copy(dewhitened_copy),
+        // .crc_pass_copy(crc_pass_copy)
+        .dewhiten_lfsfr_copy(dewhiten_lfsfr_copy),
+        .reset_dewhiten_crc_debug(reset_dewhiten_crc_debug),
+        .rx_buffer_0(rx_buffer_0)
     );
 
     // ------------------------------------------------------------
@@ -106,12 +131,13 @@ module tt_um_BLE_RX (
         if (rst) begin
             uo_out_r <= 8'h00;
         end else begin
-            uo_out_r <= {Q_BPF_r[3:2], rst, ena_sync, preamble_detected, packet_detected, demod_symbol_clk, demod_symbol};
+            // uo_out_r <= {ena_sync, nextState_copy, rst, state_copy, preamble_detected, packet_detected, demod_symbol_clk, demod_symbol};
+            uo_out_r <= {dewhiten_lfsfr_copy[3:0], preamble_detected, packet_detected, demod_symbol_clk, demod_symbol};
         end
     end
     assign uo_out = uo_out_r;
 
-    assign uio_out = {Q_BPF_r[1:0], I_BPF_r[3:0], 2'b00}; // bits [1:0] don't matter since they're inputs
+    assign uio_out = {reset_dewhiten_crc_debug, ena_sync, state_copy, nextState_copy, acc_addr_matched_copy, rx_buffer_0, 2'b00}; // bits [1:0] don't matter since they're inputs
 
 
     // Avoid unused warnings

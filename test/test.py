@@ -40,13 +40,14 @@ def load_packet(packet_name: str) -> str:
 
 async def reset_design(dut):
     """Reset the design properly"""
-    dut.ena.value = 1
     dut.ui_in.value = 0
+    dut.ena.value = 0
     dut.uio_in.value = 37  # Channel 37
     dut.rst_n.value = 0
     
     await ClockCycles(dut.clk, 20)
     dut.rst_n.value = 1
+    dut.ena.value = 1
     await ClockCycles(dut.clk, 10)
     
     dut._log.info("Reset complete")
@@ -85,7 +86,15 @@ async def test_debug_outputs(dut):
         'symbol_clk': [],
         'packet_detected': [],
         'uo_out_raw': [],
-        'preamble_detected': []
+        'preamble_detected': [],
+        # for dewhitening LFSR state debugging
+        'dewhiten_lfsr': [],
+        'ena_sync': [],
+        'reset_dewhiten_crc': [],
+        'rx_buffer_0': [],
+        'state_copy': [],
+        'nextState_copy': [],
+        'acc_addr_matched_copy': []
     }
 
     
@@ -93,9 +102,15 @@ async def test_debug_outputs(dut):
     dut._log.info(f"Sending {len(i_samples)} samples...")
 
     # Add pipeline warmup samples
-    warmup_samples = 20
+    warmup_samples = 200
     i_samples = np.concatenate([np.zeros(warmup_samples), i_samples, np.zeros(warmup_samples)])
     q_samples = np.concatenate([np.zeros(warmup_samples), q_samples, np.zeros(warmup_samples)])
+
+    # at end, add extra samples to allow for packet processing
+    extra_samples = 50
+    i_samples = np.concatenate([i_samples, np.zeros(extra_samples)])
+    q_samples = np.concatenate([q_samples, np.zeros(extra_samples)])
+
     
     for sample_idx, (i, q) in enumerate(zip(i_samples, q_samples)): 
         # Send sample
@@ -118,6 +133,23 @@ async def test_debug_outputs(dut):
         symbol_clk = (uo_val >> 1) & 0x1
         packet_det = (uo_val >> 2) & 0x1
         preamble_det = (uo_val >> 3) & 0x1
+        # last 4 bits are dewhitening LFSR state first 4 bits, another 3 bits in uio_out[5:3]
+        dewhiten_lfsr = ((uo_val >> 4) & 0x1) #| (((int(dut.uio_out.value) >> 3) & 0x7) << 4)
+
+        ena_sync = (int(dut.uio_out.value) >> 6) & 0x1
+
+        reset_dewhiten_crc = (int(dut.uio_out.value) >> 7) & 0x1
+
+        rx_buffer_0 = (int(dut.uio_out.value) >> 2) & 0x1
+
+        state_copy = (int(dut.uio_out.value) >> 5) & 0x1
+        nextState_copy = (int(dut.uio_out.value) >> 4) & 0x1
+        acc_addr_matched_copy = (int(dut.uio_out.value) >> 3) & 0x1
+
+        outputs['ena_sync'].append(ena_sync)
+    
+        outputs['dewhiten_lfsr'].append(dewhiten_lfsr)
+
         
         # Store
         outputs['sample_idx'].append(sample_idx)
@@ -126,6 +158,12 @@ async def test_debug_outputs(dut):
         outputs['packet_detected'].append(packet_det)
         outputs['uo_out_raw'].append(uo_val)
         outputs['preamble_detected'].append(preamble_det)
+        outputs['reset_dewhiten_crc'].append(reset_dewhiten_crc)
+        outputs['rx_buffer_0'].append(rx_buffer_0)
+        outputs['state_copy'].append(state_copy)
+        outputs['nextState_copy'].append(nextState_copy)
+        outputs['acc_addr_matched_copy'].append(acc_addr_matched_copy)
+
         
         # # Log symbol clock edges
         # if symbol_clk and not symbol_clk_prev:
@@ -137,9 +175,22 @@ async def test_debug_outputs(dut):
 
         if preamble_det:
             dut._log.info(f"  PREAMBLE DETECTED @ sample {sample_idx}")
+     
+        # check state changes
+        if sample_idx > 0:
+            if state_copy != outputs['state_copy'][-2]:
+                dut._log.info(f"  STATE CHANGED to {state_copy} @ sample {sample_idx}")
+            if nextState_copy != outputs['nextState_copy'][-2]:
+                dut._log.info(f"  NEXT STATE CHANGED to {nextState_copy} @ sample {sample_idx}")
+            if acc_addr_matched_copy != outputs['acc_addr_matched_copy'][-2]:
+                dut._log.info(f"  ACC ADDR MATCHED CHANGED to {acc_addr_matched_copy} @ sample {sample_idx}")
         
-        symbol_clk_prev = symbol_clk
-    
+        # check reset_dewhiten_crc changes
+        if sample_idx > 0:
+            if reset_dewhiten_crc != outputs['reset_dewhiten_crc'][-2]:
+                dut._log.info(f"  RESET DEWHITEN CRC CHANGED to {reset_dewhiten_crc} @ sample {sample_idx}")
+
+       
     # Save to file and plot
     import csv
     with open('output_capture.csv', 'w', newline='') as f:
@@ -152,7 +203,11 @@ async def test_debug_outputs(dut):
                 outputs['symbol_clk'][i],
                 outputs['packet_detected'][i],
                 outputs['uo_out_raw'][i],
-                outputs['preamble_detected'][i]
+                outputs['preamble_detected'][i],
+                outputs['dewhiten_lfsr'][i],
+                outputs['ena_sync'][i],
+                outputs['reset_dewhiten_crc'][i],
+                outputs['acc_addr_matched_copy'][i]
             ])
     dut._log.info("Saved outputs to output_capture.csv")
 
@@ -169,8 +224,14 @@ async def test_debug_outputs(dut):
         pktdet = _np.array(outputs['packet_detected'])
         raw = _np.array(outputs['uo_out_raw'])
         preamble = _np.array(outputs['preamble_detected'])
+        
+        dewhiten_lfsr = _np.array(outputs['dewhiten_lfsr'])
+        ena_sync = _np.array(outputs['ena_sync'])
 
-        fig, axes = plt.subplots(5, 1, figsize=(10, 8), sharex=True)
+        reset_dewhiten_crc = _np.array(outputs['reset_dewhiten_crc'])
+        
+
+        fig, axes = plt.subplots(10, 1, figsize=(10, 20), sharex=True)
         axes[0].step(samples, demod, where='post', color='C0')
         axes[0].set_ylabel('demod_symbol')
         axes[0].grid(True)
@@ -193,6 +254,31 @@ async def test_debug_outputs(dut):
         axes[4].set_xlabel('sample')
         axes[4].grid(True)
 
+        axes[5].step(samples, dewhiten_lfsr, where='post', color='C5')
+        axes[5].set_ylabel('dewhiten_lfsr')
+        axes[5].set_xlabel('sample')
+        axes[5].grid(True)
+
+        axes[6].step(samples, ena_sync, where='post', color='C6')
+        axes[6].set_ylabel('ena_sync')
+        axes[6].set_xlabel('sample')
+        axes[6].grid(True)
+
+        axes[7].step(samples, reset_dewhiten_crc, where='post', color='C7')
+        axes[7].set_ylabel('reset_dewhiten_crc')
+        axes[7].set_xlabel('sample')
+        axes[7].grid(True)
+
+        axes[8].step(samples, outputs['rx_buffer_0'], where='post', color='C8')
+        axes[8].set_ylabel('rx_buffer_0')
+        axes[8].set_xlabel('sample')
+        axes[8].grid(True)
+
+        axes[9].step(samples, outputs['acc_addr_matched_copy'], where='post', color='C9')
+        axes[9].set_ylabel('acc_addr_matched_copy')
+        axes[9].set_xlabel('sample')
+        axes[9].grid(True)
+
         plt.tight_layout()
         plt.savefig('output_capture.png', dpi=150)
         plt.close(fig)
@@ -203,6 +289,7 @@ async def test_debug_outputs(dut):
     symbol_edges = [i for i, (curr, prev) in enumerate(zip(outputs['symbol_clk'][1:], outputs['symbol_clk'][:-1])) 
                     if curr and not prev]
     recovered_bits = [outputs['demod_symbol'][i] for i in symbol_edges]
+    received_buffer_0 = [outputs['rx_buffer_0'][i] for i in symbol_edges]   
     
     dut._log.info(f"\nSUMMARY:")
     dut._log.info(f"  Total samples: {len(outputs['sample_idx'])}")
@@ -211,6 +298,8 @@ async def test_debug_outputs(dut):
     dut._log.info(f"  Original packet: {packet}")
     dut._log.info(f"  Packet detections: {sum(outputs['packet_detected'])}")
     dut._log.info(f"  Preamble detections: {sum(outputs['preamble_detected'])}")
+    # summary buffer_0
+    dut._log.info(f"  Buffer_0 {''.join(map(str, received_buffer_0))}")
 
     if len(symbol_edges) > 1:
         periods = np.diff(symbol_edges)

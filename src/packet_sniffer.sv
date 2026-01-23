@@ -22,10 +22,30 @@ module packet_sniffer #(
     output logic packet_detected,
     output logic [PACKET_LEN_MAX-PREAMBLE_LEN-1:0] packet_out,
     output logic [$clog2(PACKET_LEN_MAX)-1:0] packet_len,
+    output logic state_copy,
+    output logic nextState_copy,
+    output logic acc_addr_matched_copy,
+    // output logic packet_finished_copy,
+    // output logic dewhitened_copy,
+    // output logic crc_pass_copy,
+
+    // dewhitening LFSR state output for debugging
+    output logic [6:0] dewhiten_lfsfr_copy,
+    output logic reset_dewhiten_crc,
+    output logic rx_buffer_0,
 
     input logic [ACC_ADDR_LEN-1:0] acc_addr,
     input logic [5:0] channel
 );
+
+    // Connect outputs wiring for debugging
+    assign state_copy = state;
+    assign nextState_copy = nextState;
+    assign acc_addr_matched_copy = acc_addr_matched;
+    // assign packet_finished_copy = packet_finished;
+    // assign dewhitened_copy = dewhitened;
+    // assign crc_pass_copy = crc_pass;
+    assign rx_buffer_0 = rx_buffer[0];
 
     localparam BUFFER_LEN = PACKET_LEN_MAX-PREAMBLE_LEN;
     logic [BUFFER_LEN-1:0] rx_buffer;
@@ -84,7 +104,7 @@ module packet_sniffer #(
         if (~resetn) begin
             state <= 1'b0;
         end else if (en) begin
-            state <= nextState;
+            state <= acc_addr_matched;
         end
     end
 `else
@@ -110,17 +130,29 @@ module packet_sniffer #(
     end
 
     // Matching access address
-    assign acc_addr_matched = (rx_buffer[ACC_ADDR_LEN-1:0] == acc_addr);
+    // assign acc_addr_matched = (rx_buffer[ACC_ADDR_LEN-1:0] == 32'h6b7d9171);
+
+
+    logic acc_addr_matched_r;
+
+    always_ff @(posedge symbol_clk or negedge resetn) begin
+    if (!resetn) acc_addr_matched_r <= 1'b0;
+    else         acc_addr_matched_r <= (rx_buffer[ACC_ADDR_LEN-1:0] == 32'h6b7d9171);
+    end
+
+    assign acc_addr_matched = acc_addr_matched_r;
+    assign reset_dewhiten_crc = acc_addr_matched | ~state | ~resetn;
 
     // Dewhitening
     dewhiten dw (
         .clk(symbol_clk),
-        .rst(acc_addr_matched | ~state | ~resetn),
+        .rst(reset_dewhiten_crc),
         .en(state),
         .symbol_in(symbol_in),
         .symbol_out(dewhitened),
         .dewhiten_init(channel),
-        .dewhiten_poly(DEWHITEN_POLY)
+        .dewhiten_poly(DEWHITEN_POLY),
+        .dewhiten_lfsr_copy(dewhiten_lfsfr_copy)
     );
 
     // CRC
@@ -128,7 +160,7 @@ module packet_sniffer #(
         .CRC_LEN(24)
     ) chk (
         .clk(symbol_clk),
-        .rst(acc_addr_matched | ~state | ~resetn),
+        .rst(reset_dewhiten_crc),
         .en(state),
         .dewhitened(dewhitened),
         .crc_pass(crc_pass),
@@ -143,6 +175,7 @@ module dewhiten (
     input logic clk, rst, en,
     input logic symbol_in,
     output logic symbol_out,
+    output logic [DEWHITEN_LEN-1:0] dewhiten_lfsr_copy,
 
     input logic [5:0] dewhiten_init,
     input logic [6:0] dewhiten_poly
@@ -150,6 +183,7 @@ module dewhiten (
 
     localparam DEWHITEN_LEN = 7;
     logic [DEWHITEN_LEN-1:0] dewhiten_lfsr, lfsr_next;
+    assign dewhiten_lfsr_copy = dewhiten_lfsr;
 
     always_comb begin
         symbol_out = symbol_in ^ dewhiten_lfsr[0];

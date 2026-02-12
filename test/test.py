@@ -6,13 +6,15 @@ import sys
 import numpy as np
 from math import pi
 
+
 # Add the Modules directory to Python path
 test_dir = os.path.dirname(__file__)
 sys.path.insert(0, os.path.join(test_dir, 'Modules'))
 
 # Import BLE helper modules
 from phy.iq import createFSK
-
+from helpers import whiten, whiten_fullPacket
+from link_layer.ble_packet_decode import packet_decode
 # Test configuration
 SAMPLE_RATE = 16        # Samples per symbol
 DATA_WIDTH = 4          # Bits per I/Q sample
@@ -73,8 +75,22 @@ async def test_debug_outputs(dut):
     # packet = load_packet('1010101_packet')
     # packet = load_packet('1111111_packet')
     # packet = load_packet('1110101101_packet')
+    # packet = load_packet('connectable')
     dut._log.info(f"Packet: {packet[:80]}...")
     
+    # print dewhiten, start from after preamble and access address (first 40 bits)
+    dewhiten = whiten(packet[40:], 37) # 这个是 trust的 
+    # 然而 我们的verilog 输出的结果不一样。、。。
+
+
+    # 40 bits + dewhitened printing all bits
+    dut._log.info(f"Dewhitened: 0x{dewhiten} (len={len(dewhiten)})")
+    # print decoded packet
+    try:
+        packet_decode(packet, channel=37, verbose=True)
+        print(f"\nDecoded Packet: 0x{packet_decode(packet, channel=37, verbose=False)}")
+    except Exception as e:
+        dut._log.error(f"Error decoding packet: {e}")
     # Generate signal
     test_signal = createFSK(packet, amp, ifreq, DF, SAMPLE_RATE, BT, offset)
     i_samples = np.real(test_signal)
@@ -103,11 +119,12 @@ async def test_debug_outputs(dut):
 
     # Add pipeline warmup samples
     warmup_samples = 200
+
     i_samples = np.concatenate([np.zeros(warmup_samples), i_samples, np.zeros(warmup_samples)])
     q_samples = np.concatenate([np.zeros(warmup_samples), q_samples, np.zeros(warmup_samples)])
 
     # at end, add extra samples to allow for packet processing
-    extra_samples = 50
+    extra_samples = 200
     i_samples = np.concatenate([i_samples, np.zeros(extra_samples)])
     q_samples = np.concatenate([q_samples, np.zeros(extra_samples)])
 

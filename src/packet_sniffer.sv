@@ -104,7 +104,7 @@ module packet_sniffer #(
         if (~resetn) begin
             state <= 1'b0;
         end else if (en) begin
-            state <= acc_addr_matched;
+            state <= nextState;
         end
     end
 `else
@@ -135,12 +135,9 @@ module packet_sniffer #(
 
     logic acc_addr_matched_r;
 
-    always_ff @(posedge symbol_clk or negedge resetn) begin
-    if (!resetn) acc_addr_matched_r <= 1'b0;
-    else         acc_addr_matched_r <= (rx_buffer[ACC_ADDR_LEN-1:0] == 32'h6b7d9171);
-    end
+    assign acc_addr_matched = (rx_buffer[ACC_ADDR_LEN-1:0] == acc_addr);
 
-    assign acc_addr_matched = acc_addr_matched_r;
+    assign acc_addr_matched_r = acc_addr_matched;
     assign reset_dewhiten_crc = acc_addr_matched | ~state | ~resetn;
 
     // Dewhitening
